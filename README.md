@@ -1,784 +1,238 @@
 # CKB RWA Asset Adapter
 
-A reference implementation demonstrating how an established externally issued real-world asset (RWA), such as **PAX Gold (PAXG)**, can be represented on **Nervos CKB**, connected to a price oracle, consumed by DeFi applications, and exposed through wallet/application metadata.
-
-## Overview
-
-The project demonstrates the complete technical pipeline:
-
-**PAXG → CKB Asset Representation → Price Oracle → DeFi → Wallet/Application**
-
-The goal is to provide a practical and reproducible reference for bringing established external assets into the CKB ecosystem without creating a new oracle network or redefining the underlying external asset.
-
----
-
-## Problem
-
-There is currently no simple, standardized reference path for taking an established externally issued RWA and making it usable as a CKB DeFi asset.
-
-Projects integrating external assets need to address several independent concerns:
-
-* How the external asset is represented on CKB
-* How the representation is identified and verified
-* How its external market price is made available on-chain
-* How DeFi applications consume the asset and its price
-* How wallets and applications identify and display the asset
-* How the complete system can be deployed and reproduced on CKB testnet
-
-This repository addresses these concerns through a single reference implementation.
-
----
-
-## Solution
-
-This repository provides a reference implementation for the technical pipeline:
+A CKB testnet demo proving one pattern end to end: a real-world asset claim,
+gated by KYC verification, used as collateral in a simple fixed-term loan.
 
 ```text
-┌───────────────┐
-│     PAXG      │
-│ External RWA  │
-└───────┬───────┘
-        │
-        ▼
-┌───────────────────────┐
-│ CKB Asset             │
-│ Representation        │
-└──────────┬────────────┘
-           │
-           ▼
-┌───────────────────────┐
-│ Oracle Adapter        │
-│ PAXG / USD Price      │
-└──────────┬────────────┘
-           │
-           ▼
-┌───────────────────────┐
-│ CKB DeFi Application  │
-│ Swap / Liquidity /    │
-│ Collateral             │
-└──────────┬────────────┘
-           │
-           ▼
-┌───────────────────────┐
-│ Wallet / Application  │
-│ Metadata              │
-└───────────────────────┘
+RWA Asset -> KYC Attestation -> Deposit -> Borrow -> Repay -> Release
 ```
 
-The implementation focuses on **adapting an existing externally issued asset to CKB**, rather than creating a new asset issuer or oracle network.
+This is a **technical demo** proving the pattern works end to end. It is
+**not** a production lending product and does not custody real value.
 
 ---
 
-# Objectives
+## Objective
 
-The project covers five main areas:
-
-1. **CKB Asset Representation**
-2. **Oracle Adapter**
-3. **DeFi Integration**
-4. **Wallet & Application Metadata**
-5. **End-to-End CKB Testnet Demonstration**
+Build a working CKB testnet demo showing a real-world asset claim, gated by
+KYC verification, used in a simple fixed-term loan.
 
 ---
 
-# 1. CKB Asset Representation
+## Components
 
-The first component defines how PAXG is represented on CKB.
+### 1. RWA Asset ([`asset/`](asset/))
 
-The implementation documents and demonstrates:
+A native CKB token/cell representing a single, simple real-world claim (e.g.
+an invoice or warehouse receipt).
 
-* Token type
-* Token symbol
-* Decimals
-* Supply model
-* Issuance authority
-* Mint/burn assumptions
-* External asset reference
-* Relationship between the CKB representation and the underlying PAXG asset
+- Issued directly on CKB — no bridge, no external chain involved.
+- Defines: type script, decimals (if applicable), fixed supply, basic
+  metadata (name, description of what it represents).
+- Clearly labeled as a demo reference asset, not a legally binding or
+  custodied instrument.
 
-Where practical, the implementation uses existing CKB token infrastructure instead of introducing unnecessary custom token logic.
+See [docs/asset-model.md](docs/asset-model.md).
 
-### Asset Model
+### 2. KYC Attestation ([`kyc-attestation/`](kyc-attestation/)) — mocked for this phase
 
-The CKB representation should clearly distinguish between:
+**KYC verification is mocked for this demo.** The real plan is Sumsub
+integration; this phase focuses on proving the on-chain attestation and
+gating logic works, independent of which verification provider produces the
+pass/fail result.
+
+- Skips live Sumsub integration — hardcodes a "passed verification" result
+  for a given CKB address instead.
+- On that mocked pass, writes a signed attestation on-chain: a minimal Cell
+  recording that the address has passed KYC.
+- The attestation Cell is **issuer-revocable** (the issuer can invalidate
+  it), **not subject-revocable**.
+- Not a general-purpose identity system — a single-purpose attestation for
+  this project only.
+
+See [docs/kyc-attestation.md](docs/kyc-attestation.md).
+
+### 3. Lending Flow ([`lending/`](lending/)) — fixed-term, no oracle
+
+- **Deposit** — borrower locks the RWA asset + a valid KYC attestation.
+- **Borrow** — a fixed, pre-agreed amount is released to the borrower (a
+  CKB-native token or stablecoin is fine for the demo).
+- **Repay** — borrower repays the fixed amount by a fixed deadline.
+- **Release** — on repayment, the RWA asset collateral is released back to
+  the borrower.
+
+No dynamic collateral ratio, no price oracle, no liquidation logic —
+deliberately out of scope for this phase. If not repaid by the deadline, the
+collateral simply remains locked (no auction/liquidation flow for the demo).
+
+See [docs/lending.md](docs/lending.md).
+
+### 4. Testnet + Documentation
+
+- Deployment scripts for all components ([`scripts/deploy/`](scripts/deploy/)).
+- Recorded transaction hashes for: asset issuance, KYC attestation write,
+  deposit, borrow, repay, release ([docs/testnet-deployment.md](docs/testnet-deployment.md)).
+- Reproduction instructions (below).
+
+---
+
+## Definition of Done
+
+A reviewer can follow this README and independently verify one complete
+testnet transaction chain:
 
 ```text
-External Asset
-     │
-     │ represents / corresponds to
-     ▼
-CKB Asset Representation
-```
-
-The CKB-side representation does **not automatically imply ownership of the underlying external PAXG**. The relationship between the CKB asset and the external asset must be explicitly defined and documented.
-
-### Implementation
-
-Asset-related contracts and scripts are located under:
-
-```text
-contracts/rwa-asset/
-```
-
-Tests are located under:
-
-```text
-tests/asset/
+RWA asset issued -> KYC attestation written (mocked verification)
+  -> deposited as collateral -> loan issued -> repaid -> collateral released
 ```
 
 ---
 
-# 2. Oracle Adapter
+## Out of Scope (this phase)
 
-The second component provides a PAXG/USD price adapter.
-
-The adapter is intentionally designed as an **oracle adapter**, not as a new oracle network.
-
-Its responsibility is to consume an existing price source and transform the information into a format that can be consumed by CKB applications and smart contracts.
-
-### Oracle Data
-
-The on-chain price representation includes:
-
-* PAXG/USD price
-* Timestamp
-* Price precision / scale
-* Freshness threshold
-* Stale-price detection
-* Failure handling
-
-Conceptually:
-
-```text
-External Price Source
-        │
-        ▼
-┌─────────────────┐
-│ PAXG Oracle     │
-│ Adapter         │
-└────────┬────────┘
-         │
-         ▼
-   CKB Price Data
-```
-
-### Stale Price Handling
-
-A price should only be considered valid when:
-
-```text
-current_time - price_timestamp <= freshness_threshold
-```
-
-If the price exceeds the configured freshness threshold, the integration should treat the price as stale and prevent operations that depend on a valid price.
-
-### Failure Handling
-
-The adapter should define behavior for:
-
-* Missing price data
-* Invalid price data
-* Stale prices
-* Unexpected price format
-* Oracle/source availability failures
-
-Oracle-related implementation is located under:
-
-```text
-oracle/paxg-adapter/
-```
-
-Tests are located under:
-
-```text
-tests/oracle/
-```
+- Live Sumsub (or any real KYC provider) integration — mocked for this
+  phase; real integration is Phase 2 work.
+- Real custody, real legal backing, or redemption of the RWA asset.
+- Dynamic collateral ratios, price oracles, or liquidation logic.
+- General-purpose or reusable identity/attestation system.
+- Multiple asset types or multiple concurrent loans.
+- Formal automated test suite.
+- Security audit.
 
 ---
 
-# 3. DeFi Integration
-
-The CKB-side representation is integrated with **one CKB DeFi protocol or application**.
-
-The integration demonstrates the complete asset consumption flow:
-
-1. Identify the CKB asset
-2. Retrieve the PAXG/USD oracle price
-3. Validate price freshness
-4. Construct a DeFi transaction
-5. Submit the transaction to CKB
-6. Verify the resulting transaction
-
-Where technically practical, the testnet demonstration may include:
-
-* Token swap
-* Liquidity provision
-* Collateral usage
-* Other supported DeFi operations
-
-The exact operation depends on the capabilities and integration requirements of the selected CKB DeFi application.
-
-DeFi integration code is located under:
-
-```text
-integration/defi/
-```
-
-Integration tests are located under:
-
-```text
-tests/integration/
-```
-
----
-
-# 4. Wallet & Application Metadata
-
-The project defines standardized metadata allowing wallets and applications to identify the CKB representation of PAXG.
-
-Example metadata:
-
-```json
-{
-  "name": "PAX Gold",
-  "symbol": "PAXG",
-  "decimals": 18,
-  "issuer": "Paxos",
-  "external_asset": {
-    "name": "PAX Gold",
-    "symbol": "PAXG",
-    "reference": "..."
-  },
-  "ckb": {
-    "type_script": "...",
-    "lock_script": "...",
-    "code_hash": "...",
-    "hash_type": "type"
-  },
-  "logo": "...",
-  "metadata": "..."
-}
-```
-
-The exact fields and values should be finalized according to the deployed CKB representation.
-
-The metadata is located under:
-
-```text
-metadata/paxg.json
-```
-
-Documentation for wallet and application integration is available at:
-
-```text
-docs/wallet-integration.md
-```
-
----
-
-# 5. End-to-End Testnet Demo
-
-The final objective is to deploy the components to **CKB testnet** and provide a reproducible demonstration.
-
-The testnet deployment should document:
-
-* Contract deployment information
-* Script/code hashes
-* Type script information
-* Oracle configuration
-* DeFi configuration
-* Transaction hashes
-* Example transactions
-* Required environment variables
-* Wallet configuration
-* Reproduction steps
-
-Example flow:
-
-```text
-1. Deploy asset contracts
-          ↓
-2. Configure asset representation
-          ↓
-3. Configure PAXG oracle adapter
-          ↓
-4. Deploy/configure DeFi integration
-          ↓
-5. Configure wallet metadata
-          ↓
-6. Mint/obtain testnet representation
-          ↓
-7. Retrieve PAXG/USD price
-          ↓
-8. Execute DeFi transaction
-          ↓
-9. Verify transaction on CKB testnet
-```
-
-Deployment and testnet scripts are located under:
-
-```text
-scripts/deploy/
-scripts/testnet/
-```
-
----
-
-# Repository Structure
+## Repository Structure
 
 ```text
 ckb-rwa-asset-adapter/
-│
-├── contracts/
-│   └── rwa-asset/
-│
-├── oracle/
-│   └── paxg-adapter/
-│
-├── integration/
-│   └── defi/
-│
+├── asset/
+│   ├── contracts/
+│   └── scripts/
+├── kyc-attestation/
+│   ├── contracts/
+│   └── scripts/
+├── lending/
+│   ├── contracts/
+│   └── scripts/
 ├── metadata/
-│   └── paxg.json
-│
+│   └── asset.json
 ├── scripts/
 │   ├── deploy/
 │   └── testnet/
-│
 ├── tests/
 │   ├── asset/
-│   ├── oracle/
-│   └── integration/
-│
+│   ├── kyc-attestation/
+│   └── lending/
 ├── docs/
 │   ├── architecture.md
 │   ├── asset-model.md
-│   ├── oracle.md
-│   ├── defi-integration.md
-│   └── wallet-integration.md
-│
+│   ├── kyc-attestation.md
+│   ├── lending.md
+│   └── testnet-deployment.md
 ├── examples/
-│
 └── README.md
 ```
 
 ---
 
-# Architecture
+## Documentation
 
-At a high level, the system consists of four layers:
-
-### 1. External Asset Layer
-
-The underlying externally issued asset:
-
-```text
-PAXG
-```
-
-This layer remains governed by the external issuer and its existing asset infrastructure.
-
-### 2. CKB Representation Layer
-
-A CKB-side representation identifies and tracks the asset within the CKB ecosystem.
-
-```text
-PAXG
-  │
-  ▼
-CKB Asset
-```
-
-### 3. Oracle Layer
-
-The oracle adapter provides an on-chain representation of the external asset's market price.
-
-```text
-PAXG/USD
-   │
-   ▼
-Oracle Adapter
-   │
-   ▼
-CKB
-```
-
-### 4. Application Layer
-
-CKB DeFi protocols, wallets, and applications consume the asset representation and associated metadata.
-
-```text
-                ┌─── DeFi
-                │
-PAXG → CKB Asset ─── Wallet
-                │
-                └── Applications
-```
+| Document | Description |
+| --- | --- |
+| [`docs/architecture.md`](docs/architecture.md) | Overall system architecture and component interactions |
+| [`docs/asset-model.md`](docs/asset-model.md) | CKB asset representation, supply, and external relationship |
+| [`docs/kyc-attestation.md`](docs/kyc-attestation.md) | Mocked verification, attestation cell design, revocation |
+| [`docs/lending.md`](docs/lending.md) | Deposit/borrow/repay/release flow and deadline handling |
+| [`docs/testnet-deployment.md`](docs/testnet-deployment.md) | Deployed addresses, code hashes, and example transactions |
 
 ---
 
-# Documentation
+## Getting Started
 
-Detailed documentation is organized as follows:
+### Prerequisites
 
-| Document                                                   | Description                                                          |
-| ---------------------------------------------------------- | -------------------------------------------------------------------- |
-| [`docs/architecture.md`](docs/architecture.md)             | Overall system architecture and component interactions               |
-| [`docs/asset-model.md`](docs/asset-model.md)               | CKB asset representation, supply, issuance and external relationship |
-| [`docs/oracle.md`](docs/oracle.md)                         | Oracle adapter, price format, freshness and failure handling         |
-| [`docs/defi-integration.md`](docs/defi-integration.md)     | DeFi integration and transaction flow                                |
-| [`docs/wallet-integration.md`](docs/wallet-integration.md) | Wallet and application metadata integration                          |
+- Git
+- Rust + CKB development tooling (for on-chain contracts under `*/contracts/`)
+- Node.js / npm (for deployment and demo scripts under `*/scripts/`)
+- A CKB testnet wallet and testnet access
 
----
-
-# Getting Started
-
-## Prerequisites
-
-The exact requirements depend on the selected CKB tooling and DeFi integration.
-
-At minimum, development requires:
-
-* Git
-* Rust
-* CKB development tooling
-* Node.js / npm where required
-* A CKB testnet wallet
-* CKB testnet access
-
----
-
-## Clone the Repository
+### Install
 
 ```bash
 git clone <repository-url>
 cd ckb-rwa-asset-adapter
-```
-
----
-
-## Install Dependencies
-
-Install the dependencies required by the contracts, oracle adapter, and integration components.
-
-```bash
-# Example
 npm install
 ```
 
-If individual components have separate dependencies, follow the instructions in their respective directories.
+### Configuration
 
----
+Copy `.env.example` to `.env` and fill in the required values:
 
-# Configuration
-
-Create the required environment configuration for testnet deployment.
-
-Example:
-
-```env
-CKB_NETWORK=testnet
-
-# CKB RPC
-CKB_RPC_URL=
-
-# Deployment wallet
-PRIVATE_KEY=
-
-# Oracle configuration
-PAXG_PRICE_SOURCE=
-PAXG_PRICE_FRESHNESS_THRESHOLD=
-
-# DeFi configuration
-DEFI_CONTRACT_ADDRESS=
+```bash
+cp .env.example .env
 ```
 
 **Never commit private keys or other secrets to the repository.**
 
----
-
-# Testing
-
-Run the asset representation tests:
+### Testing
 
 ```bash
 npm run test:asset
-```
-
-Run the oracle adapter tests:
-
-```bash
-npm run test:oracle
-```
-
-Run the integration tests:
-
-```bash
-npm run test:integration
-```
-
-Run the complete test suite:
-
-```bash
+npm run test:kyc-attestation
+npm run test:lending
 npm test
 ```
 
-The exact commands may be updated to match the final project tooling.
-
----
-
-# Testnet Deployment
-
-Deploy the required contracts and configuration:
+### Testnet Deployment
 
 ```bash
 ./scripts/deploy/deploy.sh
-```
-
-Configure the testnet environment:
-
-```bash
-./scripts/testnet/configure.sh
-```
-
-Run the end-to-end demonstration:
-
-```bash
 ./scripts/testnet/demo.sh
 ```
 
-The final implementation should replace these examples with the actual commands used by the project.
+Deployment output (transaction hashes, code hashes) should be recorded in
+[docs/testnet-deployment.md](docs/testnet-deployment.md).
 
 ---
 
-# Testnet Deployment Information
+## Security Considerations
 
-After deployment, this section should contain the actual deployed configuration.
+Before any production use, the following require additional review:
 
-### Network
+- Asset issuance authorization
+- Attestation issuer key management and revocation process
+- Replay protection on deposit/borrow/repay/release
+- Contract authorization and upgradeability
+- Failure and recovery procedures
 
-```text
-CKB Testnet
-```
-
-### Asset
-
-```text
-Name:
-Symbol:
-Decimals:
-Type Script:
-Code Hash:
-Type ID:
-```
-
-### Oracle
-
-```text
-Price Source:
-Oracle Adapter:
-Price Format:
-Freshness Threshold:
-```
-
-### DeFi
-
-```text
-Protocol:
-Integration Contract:
-Example Transaction:
-```
-
-### Example Transactions
-
-```text
-Asset deployment:
-<transaction-hash>
-
-Oracle configuration:
-<transaction-hash>
-
-DeFi transaction:
-<transaction-hash>
-```
-
-Transaction hashes should link to the appropriate CKB testnet explorer.
+The demo implementation intentionally simplifies these for the purposes of
+proving the pattern end to end — see [Out of Scope](#out-of-scope-this-phase).
 
 ---
 
-# End-to-End Example
+## Future Work (Phase 2)
 
-A successful demonstration should show the following flow:
-
-```text
-PAXG
- │
- │ External asset
- ▼
-CKB Asset Representation
- │
- │ Asset identification
- ▼
-PAXG/USD Oracle Adapter
- │
- │ Price + timestamp
- ▼
-CKB DeFi Application
- │
- │ Swap / liquidity / collateral
- ▼
-CKB Testnet Transaction
- │
- ▼
-Wallet / Application
-```
-
-The demo should provide enough information for another developer to reproduce the same flow from a clean environment.
+- Live Sumsub (or other real KYC provider) integration
+- Real custody / legal backing / redemption for the RWA asset
+- Dynamic collateral ratios, price oracle, and liquidation logic
+- General-purpose, reusable attestation system
+- Multiple asset types and concurrent loans
+- Automated test suite and security audit
 
 ---
 
-# Design Principles
-
-## Use Existing CKB Infrastructure
-
-The implementation should reuse established CKB token and scripting infrastructure wherever practical instead of introducing unnecessary custom primitives.
-
-## Adapter, Not New Oracle Network
-
-The oracle component is an adapter between an existing price source and CKB.
-
-It does not attempt to create a new decentralized oracle network.
-
-## Explicit Asset Relationship
-
-The implementation must clearly distinguish between:
-
-* The externally issued PAXG asset
-* The CKB-side representation
-* The mechanism establishing the relationship between them
-
-A CKB token representation should not implicitly claim that it is the underlying asset.
-
-## Verifiable On-Chain State
-
-Important information required by DeFi applications should be represented in a way that can be independently verified from CKB state and transactions.
-
-## Reproducible Testnet Deployment
-
-The project should prioritize reproducibility. A developer should be able to follow the documentation, deploy the required components, and execute the demonstration without relying on undocumented manual steps.
-
----
-
-# Scope & Limitations
-
-This repository is a **reference implementation** rather than a production-ready bridge or custody system.
-
-In particular:
-
-* It does not create PAXG.
-* It does not replace the external PAXG issuer.
-* It does not establish ownership of external PAXG merely by creating a CKB token.
-* It does not introduce a new oracle network.
-* Testnet deployment does not imply production security or economic guarantees.
-* Production deployment would require additional security, custody, legal, operational, and economic considerations.
-
-The exact trust model between the CKB representation and the external asset must be explicitly documented before production use.
-
----
-
-# Security Considerations
-
-Before production deployment, the following areas require additional review:
-
-* Asset issuance and mint/burn authorization
-* Custody and redemption mechanisms
-* Oracle manipulation resistance
-* Oracle freshness guarantees
-* Replay protection
-* Contract authorization
-* Upgradeability
-* DeFi integration assumptions
-* Administrative key management
-* Failure and recovery procedures
-* External issuer dependencies
-
-The testnet implementation should clearly document which security assumptions are simplified for demonstration purposes.
-
----
-
-# Future Work
-
-Potential future extensions include:
-
-* Support for additional RWAs
-* Multiple external price sources
-* Additional CKB DeFi protocols
-* Automated oracle updates
-* Standardized RWA metadata schemas
-* Wallet-native asset discovery
-* Redemption / settlement workflows
-* Proof-of-reserves integration
-* Cross-chain asset verification
-* Production-grade monitoring
-* Formal verification and security audits
-
----
-
-# Contributing
+## Contributing
 
 Contributions are welcome.
 
-When contributing:
-
-1. Keep components modular.
-2. Add tests for new functionality.
-3. Update the relevant documentation.
-4. Avoid introducing custom infrastructure when an established CKB primitive can be reused.
-5. Clearly document security assumptions and trust boundaries.
-6. Keep testnet reproduction steps up to date.
+1. Keep components modular (`asset/`, `kyc-attestation/`, `lending/`).
+2. Add tests for new functionality under `tests/`.
+3. Update the relevant documentation under `docs/`.
+4. Clearly document security assumptions and trust boundaries.
+5. Keep testnet reproduction steps up to date.
 
 ---
 
-# License
+## License
 
-Add the project's applicable license here.
-
----
-
-# Summary
-
-This repository demonstrates a practical reference path for bringing an established external RWA into the CKB ecosystem:
-
-```text
-┌─────────┐
-│  PAXG   │
-└────┬────┘
-     │
-     ▼
-┌─────────────────────┐
-│ CKB Asset           │
-│ Representation      │
-└────┬────────────────┘
-     │
-     ▼
-┌─────────────────────┐
-│ PAXG/USD            │
-│ Oracle Adapter      │
-└────┬────────────────┘
-     │
-     ▼
-┌─────────────────────┐
-│ CKB DeFi            │
-│ Integration         │
-└────┬────────────────┘
-     │
-     ▼
-┌─────────────────────┐
-│ Wallet / Application│
-│ Metadata             │
-└─────────────────────┘
-```
-
-**PAXG → CKB Asset Representation → Price Oracle → DeFi → Wallet/Application**
-
-The resulting implementation serves as a technical reference for how established externally issued assets can be represented, priced, consumed, and surfaced within the CKB ecosystem.
+[MIT](LICENSE)

@@ -1,0 +1,36 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+build/
+coverage/
+
+# Rust / CKB contracts
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# CKB dev chain / capsule state
+ckb-dev-chain/
+.capsule.toml.bak
+deployment.toml.bak
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

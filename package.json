@@ -1,0 +1,18 @@
+{
+  "name": "ckb-rwa-asset-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference demo: RWA asset issuance, mocked KYC attestation, and fixed-term lending on CKB testnet.",
+  "license": "MIT",
+  "scripts": {
+    "test:asset": "echo \"TODO: run tests/asset\" && exit 1",
+    "test:kyc-attestation": "echo \"TODO: run tests/kyc-attestation\" && exit 1",
+    "test:lending": "echo \"TODO: run tests/lending\" && exit 1",
+    "test": "npm run test:asset && npm run test:kyc-attestation && npm run test:lending"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.14.0"
+  }
+}

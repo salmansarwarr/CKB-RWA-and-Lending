@@ -1,0 +1,14 @@
+{
+  "name": "Demo Warehouse Receipt",
+  "symbol": "RWA-DEMO",
+  "decimals": 0,
+  "description": "Reference demo asset representing a single real-world claim (e.g. an invoice or warehouse receipt). Not a legally binding or custodied instrument.",
+  "supply": "fixed",
+  "issuer": "TBD",
+  "ckb": {
+    "type_script": "",
+    "lock_script": "",
+    "code_hash": "",
+    "hash_type": "type"
+  }
+}
