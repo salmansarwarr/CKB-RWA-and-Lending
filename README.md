@@ -1,5 +1,7 @@
 # CKB RWA Asset Adapter
 
+**Status:** 🚧 In progress — scaffolding and documentation only, no contracts deployed yet.
+
 A CKB testnet demo proving one pattern end to end: a real-world asset claim,
 gated by KYC verification, used as collateral in a simple fixed-term loan.
 
@@ -7,8 +9,12 @@ gated by KYC verification, used as collateral in a simple fixed-term loan.
 RWA Asset -> KYC Attestation -> Deposit -> Borrow -> Repay -> Release
 ```
 
-This is a **technical demo** proving the pattern works end to end. It is
-**not** a production lending product and does not custody real value.
+> **Disclaimer:** The RWA asset in this repository is a **reference/demo
+> asset only**. It is not a real custodied or legally binding instrument, it
+> does not represent ownership of any actual invoice, warehouse receipt, or
+> other real-world claim, and it must not be treated as one. This is a
+> technical demo proving the pattern works end to end — it is **not** a
+> production lending product and does not custody real value.
 
 ---
 
@@ -19,40 +25,40 @@ KYC verification, used in a simple fixed-term loan.
 
 ---
 
-## Components
+## Build
 
 ### 1. RWA Asset ([`asset/`](asset/))
 
-A native CKB token/cell representing a single, simple real-world claim (e.g.
-an invoice or warehouse receipt).
+Issue a native CKB token/cell representing a single, simple real-world claim
+(e.g. an invoice or warehouse receipt).
 
 - Issued directly on CKB — no bridge, no external chain involved.
-- Defines: type script, decimals (if applicable), fixed supply, basic
+- Define: type script, decimals (if applicable), fixed supply, basic
   metadata (name, description of what it represents).
-- Clearly labeled as a demo reference asset, not a legally binding or
+- Clearly label it as a demo reference asset, not a legally binding or
   custodied instrument.
 
 See [docs/asset-model.md](docs/asset-model.md).
 
-### 2. KYC Attestation ([`kyc-attestation/`](kyc-attestation/)) — mocked for this phase
+### 2. KYC Attestation (mocked for this phase) ([`kyc-attestation/`](kyc-attestation/))
 
-**KYC verification is mocked for this demo.** The real plan is Sumsub
-integration; this phase focuses on proving the on-chain attestation and
-gating logic works, independent of which verification provider produces the
-pass/fail result.
-
-- Skips live Sumsub integration — hardcodes a "passed verification" result
-  for a given CKB address instead.
-- On that mocked pass, writes a signed attestation on-chain: a minimal Cell
+- Skip live Sumsub integration for the demo — hardcode a "passed
+  verification" result for a given CKB address instead.
+- On that mocked pass, write a signed attestation on-chain: a minimal Cell
   recording that the address has passed KYC.
-- The attestation Cell is **issuer-revocable** (the issuer can invalidate
-  it), **not subject-revocable**.
-- Not a general-purpose identity system — a single-purpose attestation for
-  this project only.
+- The attestation Cell should be **issuer-revocable** (you, as issuer, can
+  invalidate it), **not subject-revocable**.
+- No need to build a general-purpose identity system — this is a
+  single-purpose attestation for this project only.
+
+**README must state clearly:** "KYC verification is mocked for this demo.
+The real plan is Sumsub integration; this phase focuses on proving the
+on-chain attestation and gating logic works, independent of which
+verification provider produces the pass/fail result."
 
 See [docs/kyc-attestation.md](docs/kyc-attestation.md).
 
-### 3. Lending Flow ([`lending/`](lending/)) — fixed-term, no oracle
+### 3. Lending Flow (fixed-term, no oracle) ([`lending/`](lending/))
 
 - **Deposit** — borrower locks the RWA asset + a valid KYC attestation.
 - **Borrow** — a fixed, pre-agreed amount is released to the borrower (a
@@ -63,22 +69,23 @@ See [docs/kyc-attestation.md](docs/kyc-attestation.md).
 
 No dynamic collateral ratio, no price oracle, no liquidation logic —
 deliberately out of scope for this phase. If not repaid by the deadline, the
-collateral simply remains locked (no auction/liquidation flow for the demo).
+collateral simply remains locked (no auction/liquidation flow needed for
+the demo).
 
 See [docs/lending.md](docs/lending.md).
 
 ### 4. Testnet + Documentation
 
 - Deployment scripts for all components ([`scripts/deploy/`](scripts/deploy/)).
-- Recorded transaction hashes for: asset issuance, KYC attestation write,
+- Record transaction hashes for: asset issuance, KYC attestation write,
   deposit, borrow, repay, release ([docs/testnet-deployment.md](docs/testnet-deployment.md)).
-- Reproduction instructions (below).
+- Short README with reproduction instructions (below).
 
 ---
 
 ## Definition of Done
 
-A reviewer can follow this README and independently verify one complete
+A reviewer can follow the README and independently verify one complete
 testnet transaction chain:
 
 ```text
@@ -91,13 +98,15 @@ RWA asset issued -> KYC attestation written (mocked verification)
 ## Out of Scope (this phase)
 
 - Live Sumsub (or any real KYC provider) integration — mocked for this
-  phase; real integration is Phase 2 work.
-- Real custody, real legal backing, or redemption of the RWA asset.
-- Dynamic collateral ratios, price oracles, or liquidation logic.
-- General-purpose or reusable identity/attestation system.
-- Multiple asset types or multiple concurrent loans.
-- Formal automated test suite.
-- Security audit.
+  phase, real integration is Phase 2 work
+- Real custody, real legal backing, or redemption of the RWA asset
+- Dynamic collateral ratios, price oracles, or liquidation logic
+- General-purpose or reusable identity/attestation system
+- Multiple asset types or multiple concurrent loans
+- Formal automated test suite
+- Security audit
+
+Those are potential Phase 2 work.
 
 ---
 
@@ -206,7 +215,7 @@ Before any production use, the following require additional review:
 - Failure and recovery procedures
 
 The demo implementation intentionally simplifies these for the purposes of
-proving the pattern end to end — see [Out of Scope](#out-of-scope-this-phase).
+proving the pattern end to end — see [Out of Scope (this phase)](#out-of-scope-this-phase).
 
 ---
 
