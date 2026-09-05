@@ -14,8 +14,9 @@ build/
 coverage/
 
 # Rust / CKB contracts
+# Cargo.lock is committed: these crates are on-chain script binaries, not
+# libraries, so the lockfile should be reproducible across builds.
 target/
-Cargo.lock
 **/*.rs.bk
 *.pdb
 
