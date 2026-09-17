@@ -1,6 +1,4 @@
 # Environment / secrets
-.env
-.env.*
 !.env.example
 *.pem
 *.key
@@ -26,7 +24,6 @@ ckb-dev-chain/
 deployment.toml.bak
 
 # Editors / OS
-.vscode/
 .idea/
 *.swp
 .DS_Store
@@ -35,3 +32,4 @@ Thumbs.db
 # Logs
 *.log
 logs/
+config.bat
