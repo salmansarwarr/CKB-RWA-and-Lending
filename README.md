@@ -1,7 +1,5 @@
 # CKB RWA Asset Adapter
 
-**Status:** 🚧 In progress — scaffolding and documentation only, no contracts deployed yet.
-
 A CKB testnet demo proving one pattern end to end: a real-world asset claim,
 gated by KYC verification, used as collateral in a simple fixed-term loan.
 
