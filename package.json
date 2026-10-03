@@ -11,8 +11,11 @@
     "test": "npm run test:asset && npm run test:kyc-attestation && npm run test:lending"
   },
   "devDependencies": {
-    "typescript": "^5.5.4",
+    "@types/node": "^20.14.0",
     "ts-node": "^10.9.2",
-    "@types/node": "^20.14.0"
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@ckb-ccc/core": "^1.0.0"
   }
 }
