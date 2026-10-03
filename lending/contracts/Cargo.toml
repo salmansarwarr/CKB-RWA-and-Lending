@@ -1,0 +1,16 @@
+[package]
+name = "lending-type"
+version = "0.1.0"
+edition = "2021"
+description = "Type script for the demo lending loan cell (deposit step: RWA asset + KYC attestation check)."
+
+[dependencies]
+ckb-std = { version = "0.16", default-features = false, features = ["allocator", "ckb-types", "dummy-atomic"] }
+
+# Size matters on-chain: optimize the release build for code size.
+[profile.release]
+overflow-checks = true
+codegen-units = 1
+lto = true
+opt-level = "z"
+panic = "abort"

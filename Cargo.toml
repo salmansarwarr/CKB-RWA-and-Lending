@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "asset/contracts",
+    "lending/contracts",
+    "tests/lending",
 ]
 
 # kyc-attestation/contracts and lending/contracts join this workspace once

@@ -23,4 +23,4 @@ auction/liquidation flow for this demo.
 
 ## Status
 
-Not yet implemented. See [docs/lending.md](../docs/lending.md).
+Deposit check implemented (type script, compiles for riscv64; untested on-chain). Borrow/repay/release not yet implemented. See [docs/lending.md](../docs/lending.md).
