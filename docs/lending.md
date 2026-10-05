@@ -2,6 +2,11 @@
 
 Fixed-term, no-oracle lending flow gated by a valid KYC attestation.
 
+## Flow
+
+Deposit -> Borrow -> Repay -> Release. The loan cell carries the state
+(`0x00` deposited, `0x01` borrowed, `0x02` repaid) and is retired on release.
+
 ## Deposit (implemented)
 
 The deposit is enforced by a **type script** on the loan cell
@@ -77,19 +82,36 @@ a late repayer could name an old block. The demo accepts this. A production
 design would need a lender-side default path or an oracle. See
 [Security Considerations](../README.md#security-considerations).
 
-Any transition other than deposit, borrow and repay is currently rejected.
+## Release (implemented)
+
+The loan cell is spent and **not** re-created: the loan is over. The script
+rejects the tx unless:
+
+1. The input loan cell is in state `0x02` (repaid).
+2. The collateral (RWA asset cell) is among the inputs, held under the vault
+   lock.
+3. The asset cell is re-created in the outputs under the borrower's lock.
+
+The vault lock authorizes the spend, so in the demo the lender (issuer) signs
+the release; the type script ensures the asset can only go back to the
+borrower. Re-creating a repaid loan cell is rejected: from `0x02` the only
+way out is release.
+
+Every other transition is rejected.
+
+## If the deadline passes
+
+There is no default path. A loan that is not repaid stays in state `0x01` and
+its collateral stays locked in the vault. No auction or liquidation exists in
+this phase.
 
 Error codes: 1 syscall, 2 bad args (not 136 bytes), 3 bad loan data, 4 unsupported
 transition, 5 asset not in inputs, 6 asset not owned by borrower, 7 asset
 not locked in vault, 8 no valid attestation, 9 bad state transition, 10
 vault lock changed, 11 collateral moved, 12 loan not paid, 13 borrower not
-signing, 14 repayment too small, 15 missing header dep, 16 deadline passed.
+signing, 14 repayment too small, 15 missing header dep, 16 deadline passed, 17 loan not repaid, 18 asset not
+returned.
 
-To be documented once implemented:
-
-- Release: collateral return on repayment
-- Behavior when the deadline passes without repayment (collateral remains
-  locked; no auction/liquidation in this phase)
 
 Explicitly out of scope for this phase: dynamic collateral ratios, price
 oracles, liquidation logic.
