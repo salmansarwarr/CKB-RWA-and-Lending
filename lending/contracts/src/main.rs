@@ -1,6 +1,6 @@
 // lending/contracts/src/main.rs
 //
-// Lending loan-cell type script. Implements the DEPOSIT, BORROW and REPAY steps (release to follow).
+// Lending loan-cell type script. Implements the DEPOSIT, BORROW, REPAY and RELEASE steps.
 //
 // A type script (not a lock) is used because it runs when the loan cell is
 // *created*; a lock script only runs when a cell is spent, so it could not
@@ -51,7 +51,13 @@
 // lower bounds, so this is best effort: it proves the repayer *named* a block
 // from before the deadline, not that the tx was committed before it.
 //
-// Every other transition (release) is rejected until implemented.
+// Release tx (one loan cell in, none out; the loan cell is retired) must satisfy:
+//   - the input loan cell is in state 0x02 (repaid);
+//   - the collateral, locked by the vault, is among the inputs;
+//   - it is re-created in the outputs under the borrower's lock.
+//
+// Every other transition is rejected. A loan that is never repaid simply stays
+// in state 0x01 with its collateral locked: there is no liquidation path.
 
 #![no_std]
 #![no_main]
@@ -97,6 +103,8 @@ enum Error {
     RepayNotPaid,
     MissingHeader,
     DeadlinePassed,
+    LoanNotRepaid,
+    AssetNotReturned,
 }
 
 impl From<SysError> for Error {
@@ -149,6 +157,7 @@ fn check() -> Result<(), Error> {
                 _ => Err(Error::UnsupportedTransition),
             }
         }
+        (1, 0) => check_release(&cfg),
         _ => Err(Error::UnsupportedTransition),
     }
 }
@@ -293,6 +302,42 @@ fn token_total(source: Source, token_type_hash: &[u8], lock_hash: &[u8]) -> Resu
         total = total.saturating_add(u128::from_le_bytes(d[0..TOKEN_AMOUNT_LEN].try_into().unwrap()));
     }
     Ok(total)
+}
+
+fn check_release(cfg: &Config) -> Result<(), Error> {
+    let data = load_cell_data(0, Source::GroupInput)?;
+    if data.len() != LOAN_DATA_LEN {
+        return Err(Error::BadLoanData);
+    }
+    if data[32] != STATE_REPAID {
+        return Err(Error::LoanNotRepaid);
+    }
+    let borrower_lock_hash = &data[0..32];
+    let vault_lock_hash = load_cell_lock_hash(0, Source::GroupInput)?;
+
+    // The collateral being released is held by the vault.
+    let collateral_held = QueryIter::new(load_cell_type_hash, Source::Input)
+        .enumerate()
+        .any(|(i, th)| {
+            th.as_ref().map(|h| &h[..]) == Some(cfg.asset_type_hash)
+                && load_cell_lock_hash(i, Source::Input).ok() == Some(vault_lock_hash)
+        });
+    if !collateral_held {
+        return Err(Error::AssetNotInInputs);
+    }
+
+    // ...and goes back to the borrower.
+    let returned = QueryIter::new(load_cell_type_hash, Source::Output)
+        .enumerate()
+        .any(|(i, th)| {
+            th.as_ref().map(|h| &h[..]) == Some(cfg.asset_type_hash)
+                && load_cell_lock_hash(i, Source::Output).ok().as_ref().map(|h| &h[..])
+                    == Some(borrower_lock_hash)
+        });
+    if !returned {
+        return Err(Error::AssetNotReturned);
+    }
+    Ok(())
 }
 
 fn count_group(source: Source) -> usize {
