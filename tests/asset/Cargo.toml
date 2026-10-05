@@ -1,0 +1,9 @@
+[package]
+name = "asset-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+ckb-testtool = "1.1.1"
+blake2b-ref = "0.3"
