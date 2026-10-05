@@ -1,4 +1,4 @@
-// Borrow-step tests for lending-type. See deposit.rs for how to build the
+// Repay-step tests for lending-type. See deposit.rs for how to build the
 // contract first.
 
 use ckb_testtool::builtin::ALWAYS_SUCCESS;
@@ -12,30 +12,29 @@ const REPAY_AMOUNT: u128 = 1_100;
 const DEADLINE: u64 = 1_800_000_000;
 
 // Error codes from lending/contracts/src/main.rs
-const UNSUPPORTED: i8 = 4;
 const BAD_STATE_TRANSITION: i8 = 9;
 const VAULT_CHANGED: i8 = 10;
 const COLLATERAL_MOVED: i8 = 11;
-const LOAN_NOT_PAID: i8 = 12;
+const BORROWER_NOT_SIGNING: i8 = 13;
+const REPAY_NOT_PAID: i8 = 14;
 
 #[derive(Clone)]
 struct Opts {
-    input_state: u8,
     output_state: u8,
-    output_borrower_ok: bool,
     output_vault_ok: bool,
-    token_outputs: Vec<(u128, bool, bool)>, // (amount, locked by borrower, token type ok)
+    borrower_signs: bool,
+    // (amount, locked by lender, token type ok)
+    token_outputs: Vec<(u128, bool, bool)>,
     spend_asset: bool,
 }
 
 impl Opts {
     fn valid() -> Self {
         Opts {
-            input_state: 0,
-            output_state: 1,
-            output_borrower_ok: true,
+            output_state: 2,
             output_vault_ok: true,
-            token_outputs: vec![(LOAN_AMOUNT, true, true)],
+            borrower_signs: true,
+            token_outputs: vec![(REPAY_AMOUNT, true, true)],
             spend_asset: false,
         }
     }
@@ -73,8 +72,8 @@ fn run(o: Opts) -> Result<u64, String> {
         .build_script_with_hash_type(&lending_op, ScriptHashType::Data2, Bytes::from(args))
         .unwrap();
 
-    let loan_data = |borrower_hash: &[u8], state: u8| {
-        let mut d = borrower_hash.to_vec();
+    let loan_data = |state: u8| {
+        let mut d = borrower_hash.as_slice().to_vec();
         d.push(state);
         d
     };
@@ -89,12 +88,10 @@ fn run(o: Opts) -> Result<u64, String> {
         CellInput::new_builder().previous_output(op).build()
     };
 
-    let mut inputs = vec![cell(
-        &mut ctx,
-        &vault,
-        Some(&loan_type),
-        loan_data(borrower_hash.as_slice(), o.input_state),
-    )];
+    let mut inputs = vec![cell(&mut ctx, &vault, Some(&loan_type), loan_data(1))];
+    // The borrower's tokens funding the repayment.
+    let payer = if o.borrower_signs { &borrower } else { &stranger };
+    inputs.push(cell(&mut ctx, payer, Some(&loan_token), REPAY_AMOUNT.to_le_bytes().to_vec()));
     if o.spend_asset {
         inputs.push(cell(&mut ctx, &vault, Some(&asset_type), vec![]));
     }
@@ -106,12 +103,11 @@ fn run(o: Opts) -> Result<u64, String> {
             .type_(ty.cloned().pack())
             .build()
     };
-    let out_borrower = if o.output_borrower_ok { borrower_hash.as_slice().to_vec() } else { vec![0xee; 32] };
     let out_vault = if o.output_vault_ok { &vault } else { &other_vault };
     let mut outputs = vec![out(out_vault, Some(&loan_type))];
-    let mut outputs_data = vec![Bytes::from(loan_data(&out_borrower, o.output_state)).pack()];
-    for (amount, to_borrower, token_ok) in &o.token_outputs {
-        let l = if *to_borrower { &borrower } else { &stranger };
+    let mut outputs_data = vec![Bytes::from(loan_data(o.output_state)).pack()];
+    for (amount, to_lender, token_ok) in &o.token_outputs {
+        let l = if *to_lender { &issuer } else { &stranger };
         let t = if *token_ok { &loan_token } else { &wrong_token };
         outputs.push(out(l, Some(t)));
         outputs_data.push(Bytes::from(amount.to_le_bytes().to_vec()).pack());
@@ -132,54 +128,59 @@ fn assert_code(r: Result<u64, String>, code: i8) {
 }
 
 #[test]
-fn valid_borrow_passes() {
-    run(Opts::valid()).expect("valid borrow should verify");
+fn valid_repay_passes() {
+    run(Opts::valid()).expect("valid repay should verify");
 }
 
 #[test]
-fn borrow_more_than_loan_amount_passes() {
-    run(Opts { token_outputs: vec![(LOAN_AMOUNT + 1, true, true)], ..Opts::valid() }).unwrap();
+fn overpaying_passes() {
+    run(Opts { token_outputs: vec![(REPAY_AMOUNT + 1, true, true)], ..Opts::valid() }).unwrap();
 }
 
 #[test]
-fn loan_split_across_cells_passes() {
-    let split = vec![(LOAN_AMOUNT / 2, true, true), (LOAN_AMOUNT / 2, true, true)];
+fn repayment_split_across_cells_passes() {
+    let split = vec![(REPAY_AMOUNT / 2, true, true), (REPAY_AMOUNT / 2, true, true)];
     run(Opts { token_outputs: split, ..Opts::valid() }).unwrap();
 }
 
 #[test]
-fn no_tokens_released() {
-    assert_code(run(Opts { token_outputs: vec![], ..Opts::valid() }), LOAN_NOT_PAID);
+fn nothing_repaid() {
+    assert_code(run(Opts { token_outputs: vec![], ..Opts::valid() }), REPAY_NOT_PAID);
 }
 
 #[test]
-fn amount_too_small() {
-    assert_code(run(Opts { token_outputs: vec![(LOAN_AMOUNT - 1, true, true)], ..Opts::valid() }), LOAN_NOT_PAID);
+fn underpaying_by_one() {
+    assert_code(run(Opts { token_outputs: vec![(REPAY_AMOUNT - 1, true, true)], ..Opts::valid() }), REPAY_NOT_PAID);
 }
 
 #[test]
-fn tokens_go_to_someone_else() {
-    assert_code(run(Opts { token_outputs: vec![(LOAN_AMOUNT, false, true)], ..Opts::valid() }), LOAN_NOT_PAID);
+fn repaying_only_the_principal() {
+    assert_code(run(Opts { token_outputs: vec![(LOAN_AMOUNT, true, true)], ..Opts::valid() }), REPAY_NOT_PAID);
 }
 
 #[test]
-fn wrong_token_type() {
-    assert_code(run(Opts { token_outputs: vec![(LOAN_AMOUNT, true, false)], ..Opts::valid() }), LOAN_NOT_PAID);
+fn payment_to_someone_other_than_the_lender() {
+    assert_code(run(Opts { token_outputs: vec![(REPAY_AMOUNT, false, true)], ..Opts::valid() }), REPAY_NOT_PAID);
+}
+
+#[test]
+fn payment_in_the_wrong_token() {
+    assert_code(run(Opts { token_outputs: vec![(REPAY_AMOUNT, true, false)], ..Opts::valid() }), REPAY_NOT_PAID);
+}
+
+#[test]
+fn borrower_does_not_sign() {
+    assert_code(run(Opts { borrower_signs: false, ..Opts::valid() }), BORROWER_NOT_SIGNING);
 }
 
 #[test]
 fn state_not_advanced() {
+    assert_code(run(Opts { output_state: 1, ..Opts::valid() }), BAD_STATE_TRANSITION);
+}
+
+#[test]
+fn state_reset_to_deposited() {
     assert_code(run(Opts { output_state: 0, ..Opts::valid() }), BAD_STATE_TRANSITION);
-}
-
-#[test]
-fn state_skips_to_repaid() {
-    assert_code(run(Opts { output_state: 2, ..Opts::valid() }), BAD_STATE_TRANSITION);
-}
-
-#[test]
-fn borrower_rewritten() {
-    assert_code(run(Opts { output_borrower_ok: false, ..Opts::valid() }), BAD_STATE_TRANSITION);
 }
 
 #[test]
@@ -188,18 +189,6 @@ fn vault_lock_changed() {
 }
 
 #[test]
-fn collateral_spent_during_borrow() {
+fn collateral_spent_during_repay() {
     assert_code(run(Opts { spend_asset: true, ..Opts::valid() }), COLLATERAL_MOVED);
-}
-
-#[test]
-fn borrowing_twice_is_rejected() {
-    // Input already in state borrowed is a repay attempt, which must advance
-    // the state to repaid.
-    assert_code(run(Opts { input_state: 1, output_state: 1, ..Opts::valid() }), BAD_STATE_TRANSITION);
-}
-
-#[test]
-fn unknown_input_state_is_unsupported() {
-    assert_code(run(Opts { input_state: 7, ..Opts::valid() }), UNSUPPORTED);
 }
