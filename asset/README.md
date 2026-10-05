@@ -9,23 +9,29 @@ instrument, and creating it does not establish ownership of any real-world claim
 
 ## Contents
 
-- `contracts/` — `rwa-asset-type` crate: the on-chain type script (Type ID
-  args, fixed supply, basic metadata). Currently a **scaffold only** — see
-  the doc comment at the top of [`contracts/src/main.rs`](contracts/src/main.rs)
-  for the args/data layout and the verification rules still to implement.
-- `scripts/` — issuance / deployment scripts (not yet implemented).
+- `contracts/` — `rwa-asset-type` crate: the on-chain type script. A
+  Type-ID-style uniqueness check: the cell can be created exactly once, with
+  args `blake2b(first tx input | output index 0)`, and can then be
+  transferred or retired but never duplicated. There is no supply amount, no
+  decimals and no mint/burn: the asset is one unique claim.
+- `scripts/` — issuance script (see [docs/testnet-deployment.md](../docs/testnet-deployment.md)).
 
 ## Building
 
-The crate targets CKB's RISC-V VM (`riscv64imac-unknown-none-elf`), not the
-host target, so a plain `cargo check`/`cargo build` from the repo root will
-fail (missing `panic_handler`/`eh_personality` for the host). Building for
-the real target needs a `core`/`alloc` build-std toolchain — typically via
-[capsule](https://github.com/nervosnetwork/capsule) or an equivalent
-CKB script build container. That toolchain setup is not yet wired up here.
+The crate targets CKB's RISC-V VM (`riscv64imac-unknown-none-elf`). CKB's VM
+has no atomics, so it is built with `-C target-feature=-a` (the `dummy-atomic`
+ckb-std feature supplies replacements). Rust 1.98 ICEs on that flag; use 1.89:
 
-## Status
+```bash
+rustup toolchain install 1.89.0 --target riscv64imac-unknown-none-elf
+npm run build:asset   # -> target/riscv64imac-unknown-none-elf/release/rwa-asset-type
+```
 
-Scaffold only — type script skeleton exists but verification logic is not
-implemented. See [docs/asset-model.md](../docs/asset-model.md) and the root
-[README](../README.md) for the full pipeline this fits into.
+## Tests
+
+```bash
+npm run test:asset
+```
+
+Error codes: 1 syscall, 2 bad args (not 32 bytes), 3 bad tx shape, 4 no first
+input, 5 args do not match the uniqueness hash.
