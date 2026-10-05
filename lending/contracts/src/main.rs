@@ -1,6 +1,6 @@
 // lending/contracts/src/main.rs
 //
-// Lending loan-cell type script. Implements the DEPOSIT and BORROW steps.
+// Lending loan-cell type script. Implements the DEPOSIT, BORROW and REPAY steps.
 //
 // A type script (not a lock) is used because it runs when the loan cell is
 // *created*; a lock script only runs when a cell is spent, so it could not
@@ -38,7 +38,14 @@
 //     amount are among the outputs. The token's own type script decides where
 //     those tokens may come from (e.g. sUDT owner mode for the lender).
 //
-// Every other transition (repay/release) is rejected until implemented.
+// Repay tx (one loan cell in, one out, state 0x01 -> 0x02) must satisfy:
+//   - the loan cell keeps its borrower and its lock;
+//   - the collateral is not touched (released separately, once repaid);
+//   - a cell locked by the borrower is among the inputs (the borrower signs);
+//   - loan-token cells locked by the issuer (the lender) and totalling at
+//     least the repay amount are among the outputs.
+//
+// Every other transition (release) is rejected until implemented.
 
 #![no_std]
 #![no_main]
@@ -61,6 +68,7 @@ const LOAN_DATA_LEN: usize = 33;
 const ATTESTATION_LEN: usize = 41;
 const STATE_DEPOSITED: u8 = 0;
 const STATE_BORROWED: u8 = 1;
+const STATE_REPAID: u8 = 2;
 const TOKEN_AMOUNT_LEN: usize = 16;
 const STATUS_PASS: u8 = 1;
 
@@ -78,6 +86,8 @@ enum Error {
     VaultChanged,
     CollateralMoved,
     LoanNotPaid,
+    BorrowerNotSigning,
+    RepayNotPaid,
 }
 
 impl From<SysError> for Error {
@@ -93,7 +103,7 @@ fn program_entry() -> i8 {
     }
 }
 
-#[allow(dead_code)] // repay terms are consumed by the repay step
+#[allow(dead_code)] // the deadline is consumed by the deadline check
 struct Config<'a> {
     issuer_lock_hash: &'a [u8],
     asset_type_hash: &'a [u8],
@@ -127,6 +137,7 @@ fn check() -> Result<(), Error> {
             let state = load_cell_data(0, Source::GroupInput)?.get(32).copied();
             match state {
                 Some(STATE_DEPOSITED) => check_borrow(&cfg),
+                Some(STATE_BORROWED) => check_repay(&cfg),
                 _ => Err(Error::UnsupportedTransition),
             }
         }
@@ -187,16 +198,18 @@ fn check_deposit(cfg: &Config) -> Result<(), Error> {
     Ok(())
 }
 
-fn check_borrow(cfg: &Config) -> Result<(), Error> {
+/// Shared by borrow and repay: the loan cell advances to state `to` keeping its
+/// borrower and vault lock, and the collateral is left alone. Returns the
+/// borrower lock hash.
+fn check_loan_cell_step(cfg: &Config, to: u8) -> Result<[u8; 32], Error> {
     let input = load_cell_data(0, Source::GroupInput)?;
     let output = load_cell_data(0, Source::GroupOutput)?;
     if input.len() != LOAN_DATA_LEN || output.len() != LOAN_DATA_LEN {
         return Err(Error::BadLoanData);
     }
-    if output[0..32] != input[0..32] || output[32] != STATE_BORROWED {
+    if output[0..32] != input[0..32] || output[32] != to {
         return Err(Error::BadStateTransition);
     }
-    let borrower_lock_hash = &input[0..32];
     if load_cell_lock_hash(0, Source::GroupInput)? != load_cell_lock_hash(0, Source::GroupOutput)? {
         return Err(Error::VaultChanged);
     }
@@ -207,9 +220,30 @@ fn check_borrow(cfg: &Config) -> Result<(), Error> {
     if asset_spent {
         return Err(Error::CollateralMoved);
     }
+    Ok(input[0..32].try_into().unwrap())
+}
 
-    if token_total(Source::Output, cfg.loan_token_type_hash, borrower_lock_hash)? < cfg.loan_amount {
+fn check_borrow(cfg: &Config) -> Result<(), Error> {
+    let borrower_lock_hash = check_loan_cell_step(cfg, STATE_BORROWED)?;
+    if token_total(Source::Output, cfg.loan_token_type_hash, &borrower_lock_hash)? < cfg.loan_amount {
         return Err(Error::LoanNotPaid);
+    }
+    Ok(())
+}
+
+fn check_repay(cfg: &Config) -> Result<(), Error> {
+    let borrower_lock_hash = check_loan_cell_step(cfg, STATE_REPAID)?;
+
+    // The borrower must authorize the repayment: one of their cells is spent.
+    let borrower_signs = QueryIter::new(load_cell_lock_hash, Source::Input)
+        .any(|lh| lh == borrower_lock_hash);
+    if !borrower_signs {
+        return Err(Error::BorrowerNotSigning);
+    }
+
+    // The lender (issuer) receives at least the fixed repay amount.
+    if token_total(Source::Output, cfg.loan_token_type_hash, cfg.issuer_lock_hash)? < cfg.repay_amount {
+        return Err(Error::RepayNotPaid);
     }
     Ok(())
 }
