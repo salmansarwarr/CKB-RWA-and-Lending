@@ -1,6 +1,6 @@
 // lending/contracts/src/main.rs
 //
-// Lending loan-cell type script. Implements the DEPOSIT, BORROW and REPAY steps.
+// Lending loan-cell type script. Implements the DEPOSIT, BORROW and REPAY steps (release to follow).
 //
 // A type script (not a lock) is used because it runs when the loan cell is
 // *created*; a lock script only runs when a cell is spent, so it could not
@@ -45,6 +45,12 @@
 //   - loan-token cells locked by the issuer (the lender) and totalling at
 //     least the repay amount are among the outputs.
 //
+// The repay deadline is checked against the header deps: at least one must be
+// present and every one must be timestamped at or before the deadline. CKB
+// scripts cannot read the commit time of their own tx and `since` only gives
+// lower bounds, so this is best effort: it proves the repayer *named* a block
+// from before the deadline, not that the tx was committed before it.
+//
 // Every other transition (release) is rejected until implemented.
 
 #![no_std]
@@ -56,7 +62,8 @@ use ckb_std::{
     default_alloc,
     error::SysError,
     high_level::{
-        load_cell_data, load_cell_lock_hash, load_cell_type_hash, load_script, QueryIter,
+        load_cell_data, load_cell_lock_hash, load_cell_type_hash, load_header, load_script,
+        QueryIter,
     },
 };
 
@@ -88,6 +95,8 @@ enum Error {
     LoanNotPaid,
     BorrowerNotSigning,
     RepayNotPaid,
+    MissingHeader,
+    DeadlinePassed,
 }
 
 impl From<SysError> for Error {
@@ -103,7 +112,6 @@ fn program_entry() -> i8 {
     }
 }
 
-#[allow(dead_code)] // the deadline is consumed by the deadline check
 struct Config<'a> {
     issuer_lock_hash: &'a [u8],
     asset_type_hash: &'a [u8],
@@ -234,6 +242,8 @@ fn check_borrow(cfg: &Config) -> Result<(), Error> {
 fn check_repay(cfg: &Config) -> Result<(), Error> {
     let borrower_lock_hash = check_loan_cell_step(cfg, STATE_REPAID)?;
 
+    check_deadline(cfg.deadline)?;
+
     // The borrower must authorize the repayment: one of their cells is spent.
     let borrower_signs = QueryIter::new(load_cell_lock_hash, Source::Input)
         .any(|lh| lh == borrower_lock_hash);
@@ -246,6 +256,24 @@ fn check_repay(cfg: &Config) -> Result<(), Error> {
         return Err(Error::RepayNotPaid);
     }
     Ok(())
+}
+
+/// Every header dep must be timestamped at or before `deadline` (unix seconds);
+/// at least one must be given.
+fn check_deadline(deadline: u64) -> Result<(), Error> {
+    let mut seen = false;
+    for header in QueryIter::new(load_header, Source::HeaderDep) {
+        seen = true;
+        let timestamp_ms: u64 = header.raw().timestamp().unpack();
+        if timestamp_ms / 1000 > deadline {
+            return Err(Error::DeadlinePassed);
+        }
+    }
+    if seen {
+        Ok(())
+    } else {
+        Err(Error::MissingHeader)
+    }
 }
 
 /// Sum of the u128 amounts (first 16 data bytes, sUDT layout) of all cells in
