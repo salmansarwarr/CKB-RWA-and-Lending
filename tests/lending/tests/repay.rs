@@ -2,7 +2,7 @@
 // contract first.
 
 use ckb_testtool::builtin::ALWAYS_SUCCESS;
-use ckb_testtool::ckb_types::{bytes::Bytes, core::{ScriptHashType, TransactionBuilder}, packed::*, prelude::*};
+use ckb_testtool::ckb_types::{bytes::Bytes, core::{EpochNumberWithFraction, HeaderBuilder, ScriptHashType, TransactionBuilder}, packed::*, prelude::*};
 use ckb_testtool::context::Context;
 
 const MAX_CYCLES: u64 = 10_000_000;
@@ -17,6 +17,8 @@ const VAULT_CHANGED: i8 = 10;
 const COLLATERAL_MOVED: i8 = 11;
 const BORROWER_NOT_SIGNING: i8 = 13;
 const REPAY_NOT_PAID: i8 = 14;
+const MISSING_HEADER: i8 = 15;
+const DEADLINE_PASSED: i8 = 16;
 
 #[derive(Clone)]
 struct Opts {
@@ -26,6 +28,8 @@ struct Opts {
     // (amount, locked by lender, token type ok)
     token_outputs: Vec<(u128, bool, bool)>,
     spend_asset: bool,
+    // Timestamps (unix seconds) of the header deps to attach.
+    header_times: Vec<u64>,
 }
 
 impl Opts {
@@ -36,6 +40,7 @@ impl Opts {
             borrower_signs: true,
             token_outputs: vec![(REPAY_AMOUNT, true, true)],
             spend_asset: false,
+            header_times: vec![DEADLINE - 3_600],
         }
     }
 }
@@ -113,7 +118,19 @@ fn run(o: Opts) -> Result<u64, String> {
         outputs_data.push(Bytes::from(amount.to_le_bytes().to_vec()).pack());
     }
 
+    let mut header_deps = vec![];
+    for (n, secs) in o.header_times.iter().enumerate() {
+        let header = HeaderBuilder::default()
+            .number(n as u64 + 1)
+            .epoch(EpochNumberWithFraction::new(1, 0, 1000).pack())
+            .timestamp(secs * 1000)
+            .build();
+        header_deps.push(header.hash());
+        ctx.insert_header(header);
+    }
+
     let tx = TransactionBuilder::default()
+        .header_deps(header_deps)
         .inputs(inputs)
         .outputs(outputs)
         .outputs_data(outputs_data)
@@ -191,4 +208,30 @@ fn vault_lock_changed() {
 #[test]
 fn collateral_spent_during_repay() {
     assert_code(run(Opts { spend_asset: true, ..Opts::valid() }), COLLATERAL_MOVED);
+}
+
+#[test]
+fn repaying_exactly_at_the_deadline_passes() {
+    run(Opts { header_times: vec![DEADLINE], ..Opts::valid() }).unwrap();
+}
+
+#[test]
+fn repaying_one_second_late() {
+    assert_code(run(Opts { header_times: vec![DEADLINE + 1], ..Opts::valid() }), DEADLINE_PASSED);
+}
+
+#[test]
+fn repaying_long_after_the_deadline() {
+    assert_code(run(Opts { header_times: vec![DEADLINE + 86_400 * 30], ..Opts::valid() }), DEADLINE_PASSED);
+}
+
+#[test]
+fn a_late_header_among_early_ones_is_rejected() {
+    let times = vec![DEADLINE - 10, DEADLINE + 10];
+    assert_code(run(Opts { header_times: times, ..Opts::valid() }), DEADLINE_PASSED);
+}
+
+#[test]
+fn no_header_dep_means_no_deadline_proof() {
+    assert_code(run(Opts { header_times: vec![], ..Opts::valid() }), MISSING_HEADER);
 }
