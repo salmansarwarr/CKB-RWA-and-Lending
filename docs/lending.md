@@ -8,7 +8,18 @@ The deposit is enforced by a **type script** on the loan cell
 (`lending/contracts`), because a type script runs when the cell is created,
 whereas a lock script only runs when a cell is spent.
 
-Script args (64 bytes): `issuer lock hash | RWA asset type hash`.
+Script args (136 bytes, integers little-endian) fix the pre-agreed loan, so
+all loan cells with the same args are the same loan:
+
+| Bytes     | Field                                                        |
+| --------- | ------------------------------------------------------------ |
+| `0..32`   | issuer lock hash (trusted attestation issuer, also the lender) |
+| `32..64`  | RWA asset type hash (accepted collateral)                    |
+| `64..96`  | loan token type hash                                         |
+| `96..112` | loan amount, u128                                            |
+| `112..128`| repay amount, u128                                           |
+| `128..136`| repay deadline, u64, unix seconds                            |
+
 Loan cell data (33 bytes): `borrower lock hash | state` (`0x00` = deposited).
 
 A deposit tx has no loan cell in its inputs and exactly one in its outputs,
@@ -25,7 +36,7 @@ Note: the attestation is spent by the deposit, so the issuer must co-sign and
 should re-create it as an output (not enforced on-chain). Any non-deposit
 transition on the loan cell is currently rejected.
 
-Error codes: 1 syscall, 2 bad args, 3 bad loan data, 4 unsupported
+Error codes: 1 syscall, 2 bad args (not 136 bytes), 3 bad loan data, 4 unsupported
 transition, 5 asset not in inputs, 6 asset not owned by borrower, 7 asset
 not locked in vault, 8 no valid attestation.
 
