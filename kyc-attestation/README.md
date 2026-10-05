@@ -19,9 +19,12 @@ general-purpose identity system.
 
 ## Contents
 
-- `contracts/` — attestation cell type script (issuer-revocable).
-- `scripts/` — mock verification + attestation write/revoke scripts.
+- `scripts/write_attestation.ts` — mocked verification (always passes) and the
+  attestation write. There is no `contracts/` crate: the attestation is a plain
+  cell under the issuer's own lock, so only the issuer can spend (revoke) it.
 
 ## Status
 
-Not yet implemented. See [docs/kyc-attestation.md](../docs/kyc-attestation.md).
+Implemented. Layout, revocation and how lending checks it:
+[docs/kyc-attestation.md](../docs/kyc-attestation.md). Tests:
+`npm run test:kyc-attestation`.

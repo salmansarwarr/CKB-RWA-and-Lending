@@ -1,1 +1,1 @@
-Tests for the KYC attestation cell and mocked verification flow (`../../kyc-attestation`). Not yet implemented.
+Tests for the attestation layout (`../../kyc-attestation/scripts`), run with `npm run test:kyc-attestation`.

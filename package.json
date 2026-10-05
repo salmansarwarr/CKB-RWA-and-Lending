@@ -6,12 +6,13 @@
   "license": "MIT",
   "scripts": {
     "test:asset": "npm run build:asset && cargo test -p asset-tests",
-    "test:kyc-attestation": "echo \"TODO: run tests/kyc-attestation\" && exit 1",
+    "test:kyc-attestation": "ts-node tests/kyc-attestation/attestation.test.ts",
     "test:lending": "npm run build:lending && cargo test -p lending-tests",
     "test": "npm run test:asset && npm run test:kyc-attestation && npm run test:lending",
     "build:asset": "RUSTFLAGS=\"-C target-feature=-a\" cargo +1.89.0 build -p rwa-asset-type --release --target riscv64imac-unknown-none-elf",
     "build:lending": "RUSTFLAGS=\"-C target-feature=-a\" cargo +1.89.0 build -p lending-type --release --target riscv64imac-unknown-none-elf",
-    "build:contracts": "npm run build:asset && npm run build:lending"
+    "build:contracts": "npm run build:asset && npm run build:lending",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

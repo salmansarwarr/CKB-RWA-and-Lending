@@ -1,7 +1,10 @@
 // Mocked KYC verification + on-chain attestation write (CKB testnet).
 //
 // Usage:
-//   ISSUER_PRIVATE_KEY=0x... npx ts-node kyc-attestation/scripts/write_attestation.ts <subject-ckt-address>
+//   npx ts-node kyc-attestation/scripts/write_attestation.ts [<subject-ckt-address>]
+//
+// Reads .env: the issuer key is ISSUER_PRIVATE_KEY or PRIVATE_KEY; the subject
+// defaults to KYC_MOCK_PASS_ADDRESS, then to the BORROWER_PRIVATE_KEY address.
 //
 // Attestation cell data layout (41 bytes, all integers little-endian):
 //   [0..32)   subject lock hash
@@ -12,6 +15,7 @@
 // the issuer can spend (i.e. revoke) it. The subject cannot.
 
 import { ccc } from "@ckb-ccc/core";
+import { explorerTx, loadEnv, recordTransaction } from "../../scripts/lib/common";
 
 export const STATUS_FAIL = 0;
 export const STATUS_PASS = 1;
@@ -74,25 +78,37 @@ export async function writeAttestation(
 }
 
 async function main() {
-  const [subjectAddr] = process.argv.slice(2);
-  const key = process.env.ISSUER_PRIVATE_KEY;
-  if (!subjectAddr || !key) {
-    console.error(
-      "usage: ISSUER_PRIVATE_KEY=0x... write_attestation.ts <subject-ckt-address>",
-    );
+  loadEnv();
+  const client = new ccc.ClientPublicTestnet(
+    process.env.CKB_RPC_URL ? { url: process.env.CKB_RPC_URL } : undefined,
+  );
+  const key = process.env.ISSUER_PRIVATE_KEY || process.env.PRIVATE_KEY;
+  if (!key) {
+    console.error("set ISSUER_PRIVATE_KEY or PRIVATE_KEY (see .env.example)");
+    process.exit(1);
+  }
+  const issuer = new ccc.SignerCkbPrivateKey(client, key);
+
+  let subject: ccc.Script;
+  const subjectAddr = process.argv[2] || process.env.KYC_MOCK_PASS_ADDRESS;
+  if (subjectAddr) {
+    subject = (await ccc.Address.fromString(subjectAddr, client)).script;
+  } else if (process.env.BORROWER_PRIVATE_KEY) {
+    const borrower = new ccc.SignerCkbPrivateKey(client, process.env.BORROWER_PRIVATE_KEY);
+    subject = (await borrower.getRecommendedAddressObj()).script;
+  } else {
+    console.error("pass a subject address, or set KYC_MOCK_PASS_ADDRESS / BORROWER_PRIVATE_KEY");
     process.exit(1);
   }
 
-  const client = new ccc.ClientPublicTestnet();
-  const issuer = new ccc.SignerCkbPrivateKey(client, key);
-  const subject = (await ccc.Address.fromString(subjectAddr, client)).script;
-
   const status = mockVerify(subject);
-  console.log(`mock KYC for ${subjectAddr}: ${status === STATUS_PASS ? "pass" : "fail"}`);
+  console.log(`mock KYC for ${subject.hash()}: ${status === STATUS_PASS ? "pass" : "fail"}`);
 
   const txHash = await writeAttestation(client, issuer, subject, status);
   console.log(`attestation tx: ${txHash}`);
-  console.log(`https://pudge.explorer.nervos.org/transaction/${txHash}`);
+  await client.waitTransaction(txHash, 0, 180_000, 3_000);
+  recordTransaction("kyc_attestation", txHash);
+  console.log(explorerTx(txHash));
 }
 
 if (require.main === module) {
