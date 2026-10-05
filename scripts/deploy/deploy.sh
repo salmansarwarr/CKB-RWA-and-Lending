@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Deploys the RWA asset, KYC attestation, and lending contracts to CKB testnet.
-# TODO: implement once contracts under asset/, kyc-attestation/, lending/ exist.
+# Builds the on-chain contracts and deploys them to CKB testnet.
+# Needs PRIVATE_KEY (funded, ~75,000 testnet CKB) in .env; see .env.example.
 set -euo pipefail
+cd "$(dirname "$0")/../.."
 
-echo "TODO: deploy asset/contracts"
-echo "TODO: deploy kyc-attestation/contracts"
-echo "TODO: deploy lending/contracts"
+npm run build:contracts
+npx ts-node scripts/deploy/deploy.ts "$@"
