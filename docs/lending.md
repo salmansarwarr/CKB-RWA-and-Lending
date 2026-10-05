@@ -49,17 +49,44 @@ rejects the tx unless:
    sUDT owner and mints them in the same tx.
 
 The vault lock authorizes the spend, so in the demo the lender (issuer) signs
-the borrow. Any transition other than deposit and borrow is currently
-rejected.
+the borrow.
+
+## Repay (implemented)
+
+The loan cell is spent and re-created (state `0x01` -> `0x02`). The script
+rejects the tx unless:
+
+1. The loan cell keeps its borrower and vault lock, and the collateral is not
+   spent (it is released in a separate step).
+2. The deadline check passes (below).
+3. A cell locked by the borrower is among the inputs, so the borrower
+   authorizes the repayment.
+4. Loan-token cells locked by the issuer (the lender) and totalling at least
+   the fixed repay amount are among the outputs. Overpaying is allowed.
+
+### Deadline
+
+The deadline (unix seconds) is in the script args. The tx must carry at least
+one header dep, and every header dep must be timestamped at or before the
+deadline (equal is fine).
+
+**Limitation:** a CKB script cannot read the commit time of its own tx, and
+`since` can only express lower bounds, so an upper bound cannot be enforced
+exactly. The check proves the repayer *named* a block from before the deadline;
+a late repayer could name an old block. The demo accepts this. A production
+design would need a lender-side default path or an oracle. See
+[Security Considerations](../README.md#security-considerations).
+
+Any transition other than deposit, borrow and repay is currently rejected.
 
 Error codes: 1 syscall, 2 bad args (not 136 bytes), 3 bad loan data, 4 unsupported
 transition, 5 asset not in inputs, 6 asset not owned by borrower, 7 asset
 not locked in vault, 8 no valid attestation, 9 bad state transition, 10
-vault lock changed, 11 collateral moved, 12 loan not paid.
+vault lock changed, 11 collateral moved, 12 loan not paid, 13 borrower not
+signing, 14 repayment too small, 15 missing header dep, 16 deadline passed.
 
 To be documented once implemented:
 
-- Repay: repayment conditions and deadline check
 - Release: collateral return on repayment
 - Behavior when the deadline passes without repayment (collateral remains
   locked; no auction/liquidation in this phase)
