@@ -1,5 +1,6 @@
 # Examples
 
-Example transactions and reproduction artifacts from the CKB testnet demo run
-will be added here once the end-to-end flow has been executed (see
-[docs/testnet-deployment.md](../docs/testnet-deployment.md)).
+The reproducible example is the testnet run itself: run
+`./scripts/testnet/demo.sh` and compare with the transactions recorded in
+[docs/testnet-deployment.md](../docs/testnet-deployment.md). The raw record is
+[`scripts/deploy/deployment.testnet.json`](../scripts/deploy/deployment.testnet.json).

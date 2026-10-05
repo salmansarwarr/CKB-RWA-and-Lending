@@ -2,6 +2,18 @@
 
 Fixed-term, no-oracle lending flow gated by a valid KYC attestation.
 
+## Trust assumptions (demo)
+
+- **Vault lock = the issuer's own lock.** The collateral and the loan cell sit
+  under the issuer's secp256k1 lock, so the issuer co-signs borrow, repay and
+  release. The loan type script still forces the asset back to the borrower on
+  release and checks every amount, but a hostile issuer could simply refuse to
+  sign. A production design needs a dedicated vault lock script that is only
+  spendable together with the loan cell; that is out of scope here.
+- **Issuer = lender = attestation issuer = sUDT owner.** One key plays all four
+  roles; the borrower is a separate key.
+- Attestation and deadline caveats are described in the sections below.
+
 ## Flow
 
 Deposit -> Borrow -> Repay -> Release. The loan cell carries the state

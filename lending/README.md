@@ -18,9 +18,17 @@ auction/liquidation flow for this demo.
 
 ## Contents
 
-- `contracts/` — lending lock script implementing the deposit/borrow/repay/release state machine.
-- `scripts/` — deposit / borrow / repay / release scripts.
+- `contracts/` — `lending-type` crate: the loan-cell **type script** that
+  enforces the deposit/borrow/repay/release state machine (a type script
+  runs when the loan cell is created; a lock script would not).
+- `scripts/` — `deposit.ts`, `borrow.ts`, `fund_interest.ts`, `repay.ts`,
+  `release.ts`, plus `lib.ts` (layouts and cell lookup).
 
 ## Status
 
-Deposit check implemented (type script, compiles for riscv64; untested on-chain). Borrow/repay/release not yet implemented. See [docs/lending.md](../docs/lending.md).
+All four steps are implemented and covered by `ckb-testtool` tests
+(`npm run test:lending`). The TypeScript scripts are run by
+[`scripts/testnet/demo.sh`](../scripts/testnet/demo.sh); transaction hashes
+are in [docs/testnet-deployment.md](../docs/testnet-deployment.md). See
+[docs/lending.md](../docs/lending.md) for the rules, error codes and trust
+assumptions.

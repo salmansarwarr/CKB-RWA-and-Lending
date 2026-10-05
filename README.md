@@ -101,7 +101,7 @@ RWA asset issued -> KYC attestation written (mocked verification)
 - Dynamic collateral ratios, price oracles, or liquidation logic
 - General-purpose or reusable identity/attestation system
 - Multiple asset types or multiple concurrent loans
-- Formal automated test suite
+- Fuzzing or formal verification of the contracts
 - Security audit
 
 Those are potential Phase 2 work.
@@ -124,8 +124,9 @@ ckb-rwa-asset-adapter/
 ├── metadata/
 │   └── asset.json
 ├── scripts/
-│   ├── deploy/
-│   └── testnet/
+│   ├── deploy/      deploy, record_docs, verify_code_hashes, deployment.testnet.json
+│   ├── lib/         shared helpers
+│   └── testnet/     demo.sh
 ├── tests/
 │   ├── asset/
 │   ├── kyc-attestation/
@@ -159,9 +160,19 @@ ckb-rwa-asset-adapter/
 ### Prerequisites
 
 - Git
-- Rust + CKB development tooling (for on-chain contracts under `*/contracts/`)
-- Node.js / npm (for deployment and demo scripts under `*/scripts/`)
-- A CKB testnet wallet and testnet access
+- Node.js 18+ and npm
+- Rust via [rustup](https://rustup.rs), plus the pinned toolchain for the
+  on-chain contracts (CKB's VM has no atomics, so they are built with
+  `-C target-feature=-a`, which Rust 1.98 currently ICEs on):
+
+  ```bash
+  rustup toolchain install 1.89.0 --target riscv64imac-unknown-none-elf
+  ```
+
+- Two CKB **testnet** keys, funded from the
+  [faucet](https://faucet.nervos.org): the issuer/lender (needs about 75,000
+  CKB, because the two contract binaries are stored on chain at 1 CKB per
+  byte) and the borrower (a few hundred CKB). Use throwaway keys.
 
 ### Install
 
@@ -173,32 +184,61 @@ npm install
 
 ### Configuration
 
-Copy `.env.example` to `.env` and fill in the required values:
-
 ```bash
 cp .env.example .env
 ```
 
-**Never commit private keys or other secrets to the repository.**
+Fill in `PRIVATE_KEY` (issuer/lender) and `BORROWER_PRIVATE_KEY` (both
+`0x`-prefixed). The loan amounts and term are optional (defaults: borrow 1000,
+repay 1100, 1 hour). `.env` is gitignored: **never commit private keys.**
 
-### Testing
+### Testing (no network, no keys)
 
 ```bash
-npm run test:asset
-npm run test:kyc-attestation
-npm run test:lending
-npm test
+npm test          # asset (9) + KYC (5) + lending (52) tests
+npm run typecheck # TypeScript scripts
 ```
 
-### Testnet Deployment
+The contract tests run the compiled RISC-V binaries in `ckb-testtool`'s VM,
+covering every accept and reject path of each step.
+
+### Reproduce the testnet flow
 
 ```bash
-./scripts/deploy/deploy.sh
 ./scripts/testnet/demo.sh
 ```
 
-Deployment output (transaction hashes, code hashes) should be recorded in
-[docs/testnet-deployment.md](docs/testnet-deployment.md).
+This builds the contracts, deploys them, and runs the whole chain, recording
+every transaction hash:
+
+```text
+deploy -> issue RWA asset -> write KYC attestation (mocked)
+  -> deposit -> borrow -> repay -> release
+```
+
+Each step is also a standalone script (`npx ts-node <script>`), in this order:
+
+| Step | Script |
+| --- | --- |
+| Deploy contracts | `scripts/deploy/deploy.sh` |
+| Issue the asset | `asset/scripts/issue_asset.ts` |
+| Write the attestation | `kyc-attestation/scripts/write_attestation.ts` |
+| Deposit | `lending/scripts/deposit.ts` |
+| Borrow | `lending/scripts/borrow.ts` |
+| Fund interest (demo setup) | `lending/scripts/fund_interest.ts` |
+| Repay | `lending/scripts/repay.ts` |
+| Release | `lending/scripts/release.ts` |
+
+Progress is kept in `scripts/deploy/deployment.testnet.json` (public data
+only). `./scripts/testnet/demo.sh --fresh` keeps the deployed contracts and
+reruns the flow with a new asset and loan.
+
+### Verify independently
+
+See [docs/testnet-deployment.md](docs/testnet-deployment.md): it lists every
+transaction and explains how to check the code hashes against a local build
+(`npx ts-node scripts/deploy/verify_code_hashes.ts`) and follow the chain on the
+explorer.
 
 ---
 
@@ -209,6 +249,11 @@ Before any production use, the following require additional review:
 - Asset issuance authorization
 - Attestation issuer key management and revocation process
 - Replay protection on deposit/borrow/repay/release
+- The repay deadline is best effort: CKB scripts cannot read their own commit
+  time, so the contract checks header-dep timestamps (see
+  [docs/lending.md](docs/lending.md#deadline))
+- The vault lock is the issuer's own key in this demo, so the issuer co-signs
+  every loan step (see [Trust assumptions](docs/lending.md#trust-assumptions-demo))
 - Contract authorization and upgradeability
 - Failure and recovery procedures
 
@@ -224,7 +269,7 @@ proving the pattern end to end — see [Out of Scope (this phase)](#out-of-scope
 - Dynamic collateral ratios, price oracle, and liquidation logic
 - General-purpose, reusable attestation system
 - Multiple asset types and concurrent loans
-- Automated test suite and security audit
+- Fuzzing, formal verification and a security audit
 
 ---
 

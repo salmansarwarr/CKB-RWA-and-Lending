@@ -33,9 +33,21 @@ to remove or alter it.
 ## Writing an attestation
 
 ```
-ISSUER_PRIVATE_KEY=0x... npx ts-node kyc-attestation/scripts/write_attestation.ts <subject-ckt-address>
+npx ts-node kyc-attestation/scripts/write_attestation.ts [<subject-ckt-address>]
 ```
 
-## To be documented
+The issuer key is `ISSUER_PRIVATE_KEY` or `PRIVATE_KEY` from `.env`. With no
+address argument the subject is `KYC_MOCK_PASS_ADDRESS`, then the address of
+`BORROWER_PRIVATE_KEY`. The tx hash is recorded in
+`scripts/deploy/deployment.testnet.json`.
 
-- How the lending flow checks for a valid, non-revoked attestation
+## How the lending flow checks it
+
+The deposit step of the loan type script ([lending.md](lending.md)) requires,
+among the tx inputs, a cell that is locked by the issuer's lock hash (from the
+script args), is exactly 41 bytes, carries the borrower's lock hash as
+subject, and has status `0x01`. Revocation needs no extra mechanism: once the
+issuer spends the cell it no longer exists, so a deposit cannot reference it.
+
+Because the attestation sits under the issuer's lock, spending it in a deposit
+needs the issuer's signature; the deposit tx re-creates it as an output.
