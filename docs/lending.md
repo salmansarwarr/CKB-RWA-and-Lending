@@ -33,16 +33,32 @@ and the script rejects it unless:
    `0x01` (pass). See [kyc-attestation.md](kyc-attestation.md).
 
 Note: the attestation is spent by the deposit, so the issuer must co-sign and
-should re-create it as an output (not enforced on-chain). Any non-deposit
-transition on the loan cell is currently rejected.
+should re-create it as an output (not enforced on-chain).
+
+## Borrow (implemented)
+
+The loan cell is spent and re-created (state `0x00` -> `0x01`). The script
+rejects the tx unless:
+
+1. The loan cell keeps its borrower, and its lock (the vault) is unchanged.
+2. The collateral is not touched: no RWA asset cell is among the inputs.
+3. Loan-token cells (type hash from args) locked by the borrower and totalling
+   at least the loan amount are among the outputs. Token amounts are read as
+   a u128 from the first 16 data bytes (sUDT layout). Where the tokens come
+   from is the token type script's business; in the demo the issuer is the
+   sUDT owner and mints them in the same tx.
+
+The vault lock authorizes the spend, so in the demo the lender (issuer) signs
+the borrow. Any transition other than deposit and borrow is currently
+rejected.
 
 Error codes: 1 syscall, 2 bad args (not 136 bytes), 3 bad loan data, 4 unsupported
 transition, 5 asset not in inputs, 6 asset not owned by borrower, 7 asset
-not locked in vault, 8 no valid attestation.
+not locked in vault, 8 no valid attestation, 9 bad state transition, 10
+vault lock changed, 11 collateral moved, 12 loan not paid.
 
 To be documented once implemented:
 
-- Borrow: fixed amount, fixed deadline
 - Repay: repayment conditions and deadline check
 - Release: collateral return on repayment
 - Behavior when the deadline passes without repayment (collateral remains
