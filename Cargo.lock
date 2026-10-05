@@ -32,6 +32,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
+name = "asset-tests"
+version = "0.1.0"
+dependencies = [
+ "blake2b-ref",
+ "ckb-testtool",
+]
+
+[[package]]
 name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -197,7 +205,7 @@ dependencies = [
  "ckb-crypto",
  "ckb-dao-utils",
  "ckb-error",
- "ckb-hash 1.1.1",
+ "ckb-hash",
  "ckb-jsonrpc-types",
  "ckb-logger",
  "ckb-pow",
@@ -308,7 +316,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1bc221d4b9d6d39215b1d62be855861b8b0c8d668ca29874903b0bf5d0b4d9fa"
 dependencies = [
  "cfg-if",
- "ckb-hash 0.119.0",
  "molecule 0.8.0",
 ]
 
@@ -321,21 +328,12 @@ dependencies = [
  "cfg-if",
  "ckb-error",
  "ckb-fixed-hash",
- "ckb-hash 1.1.1",
+ "ckb-hash",
  "ckb-occupied-capacity",
  "molecule 0.9.2",
  "numext-fixed-uint",
  "seq-macro",
  "strum",
-]
-
-[[package]]
-name = "ckb-hash"
-version = "0.119.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99ba7c72f86f239b3e0154f51d6cd5d0d83bbaa8775fdc7b6bcac459ae24b6fd"
-dependencies = [
- "blake2b-ref",
 ]
 
 [[package]]
@@ -429,7 +427,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e355b9e25bbff2b9ff2ec789218c1ba4afa91f8ac57bd5bbc7f421a6312c296e"
 dependencies = [
  "byteorder",
- "ckb-hash 1.1.1",
+ "ckb-hash",
  "ckb-types",
  "eaglesong",
  "log",
@@ -470,7 +468,7 @@ dependencies = [
  "byteorder",
  "ckb-chain-spec",
  "ckb-error",
- "ckb-hash 1.1.1",
+ "ckb-hash",
  "ckb-logger",
  "ckb-traits",
  "ckb-types",
@@ -524,7 +522,7 @@ dependencies = [
  "ckb-chain-spec",
  "ckb-crypto",
  "ckb-error",
- "ckb-hash 1.1.1",
+ "ckb-hash",
  "ckb-jsonrpc-types",
  "ckb-mock-tx-types",
  "ckb-resource",
@@ -558,7 +556,7 @@ dependencies = [
  "ckb-error",
  "ckb-fixed-hash",
  "ckb-gen-types 1.1.2",
- "ckb-hash 1.1.1",
+ "ckb-hash",
  "ckb-merkle-mountain-range",
  "ckb-occupied-capacity",
  "ckb-rational",
@@ -1478,6 +1476,7 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 name = "rwa-asset-type"
 version = "0.1.0"
 dependencies = [
+ "blake2b-ref",
  "ckb-std",
 ]
 

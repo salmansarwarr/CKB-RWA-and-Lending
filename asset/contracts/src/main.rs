@@ -8,74 +8,79 @@
 // guarantee this specific cell can be created exactly once and never
 // duplicated, following the same pattern as CKB's standard Type ID script.
 //
-// Status: implementable skeleton. Needs a local CKB dev environment
-// (capsule / ckb-std toolchain) to build and test against testnet.
+// Script args (32 bytes): blake2b(first tx input | output index as u64 LE).
+// The output index is fixed at 0, so the issuance tx must place the asset
+// cell at output 0.
+//
+// DEMO REFERENCE ASSET ONLY: not a custodied or legally binding instrument.
 
 #![no_std]
 #![no_main]
 
+use blake2b_ref::Blake2bBuilder;
 use ckb_std::{
     ckb_constants::Source,
-    ckb_types::prelude::*,
-    high_level::{load_cell_type, load_input, load_script, QueryIter},
-    ckb_types::packed::CellInput,
+    ckb_types::{bytes::Bytes, prelude::*},
+    default_alloc,
+    high_level::{load_cell_type_hash, load_input, load_script, load_script_hash, QueryIter},
 };
-use blake2b_ref::Blake2bBuilder;
+
+ckb_std::entry!(program_entry);
+default_alloc!();
 
 const SCRIPT_ARGS_LEN: usize = 32;
 
-#[no_mangle]
-pub extern "C" fn main() -> i8 {
+#[repr(i8)]
+enum Error {
+    Syscall = 1,
+    BadArgs,
+    BadShape,
+    NoFirstInput,
+    UniquenessMismatch,
+}
+
+fn program_entry() -> i8 {
     match check() {
         Ok(()) => 0,
-        Err(code) => code,
+        Err(e) => e as i8,
     }
 }
 
-fn check() -> Result<(), i8> {
-    let script = load_script().map_err(|_| 1)?;
-    let args: ckb_std::ckb_types::bytes::Bytes = script.args().unpack();
+fn check() -> Result<(), Error> {
+    let script = load_script().map_err(|_| Error::Syscall)?;
+    let args: Bytes = script.args().unpack();
     if args.len() != SCRIPT_ARGS_LEN {
-        return Err(2); // malformed args
+        return Err(Error::BadArgs);
     }
 
-    let type_hash = script.calc_script_hash();
+    let type_hash = load_script_hash().map_err(|_| Error::Syscall)?;
+    let count = |source| {
+        QueryIter::new(load_cell_type_hash, source)
+            .filter(|h| h.as_ref() == Some(&type_hash))
+            .count()
+    };
 
-    let inputs_with_this_type = QueryIter::new(load_cell_type, Source::Input)
-        .filter(|t| t.as_ref().map(|s| s.calc_script_hash()) == Some(type_hash.clone()))
-        .count();
-
-    let outputs_with_this_type = QueryIter::new(load_cell_type, Source::Output)
-        .filter(|t| t.as_ref().map(|s| s.calc_script_hash()) == Some(type_hash.clone()))
-        .count();
-
-    match (inputs_with_this_type, outputs_with_this_type) {
+    match (count(Source::Input), count(Source::Output)) {
         // Creation: no input cell of this type, exactly one output cell of
-        // this type. Verify args == hash(first tx input's outpoint + a
-        // fixed output index), same as the standard Type ID pattern. This
-        // guarantees the args can never be reproduced, since the consumed
-        // input can never exist again.
+        // this type, and args == hash(first tx input | output index 0), as in
+        // the standard Type ID pattern. The consumed input can never exist
+        // again, so the args can never be reproduced.
         (0, 1) => verify_creation(&args),
 
-        // Transfer: exactly one input and one output of this type. The
-        // claim is being moved to a new owner (new Lock Script) but its
-        // identity (Type Script args) is unchanged. No further check
-        // needed here -- Lock Script(s) handle authorization.
+        // Transfer: the claim moves to a new owner (new lock) but keeps its
+        // identity (type args). Lock scripts handle authorization.
         (1, 1) => Ok(()),
 
-        // Destruction: one input, no output. Allowed -- e.g. if a claim is
-        // deliberately retired. Revisit if this should be restricted.
+        // Destruction: one input, no output, e.g. a claim deliberately retired.
         (1, 0) => Ok(()),
 
         // Anything else (e.g. two outputs claiming the same type) is invalid.
-        _ => Err(3),
+        _ => Err(Error::BadShape),
     }
 }
 
-fn verify_creation(args: &[u8]) -> Result<(), i8> {
-    // TODO: confirm which output index this cell occupies if more than one
-    // output is possible in the issuance tx; for the demo, assume index 0.
-    let first_input: CellInput = load_input(0, Source::Input).map_err(|_| 4)?;
+fn verify_creation(args: &[u8]) -> Result<(), Error> {
+    let first_input = load_input(0, Source::Input).map_err(|_| Error::NoFirstInput)?;
 
     let mut hasher = Blake2bBuilder::new(32)
         .personal(b"ckb-default-hash")
@@ -88,6 +93,6 @@ fn verify_creation(args: &[u8]) -> Result<(), i8> {
     if hash == args {
         Ok(())
     } else {
-        Err(5) // args don't match expected uniqueness hash
+        Err(Error::UniquenessMismatch)
     }
 }

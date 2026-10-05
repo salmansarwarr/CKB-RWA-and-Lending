@@ -3,8 +3,19 @@ resolver = "2"
 members = [
     "asset/contracts",
     "lending/contracts",
+    "tests/asset",
     "tests/lending",
 ]
 
 # kyc-attestation/contracts and lending/contracts join this workspace once
 # their crates are scaffolded.
+
+# Profiles only take effect at the workspace root. Size matters on-chain (every
+# byte costs CKB capacity), so optimize for size and strip symbols.
+[profile.release]
+overflow-checks = true
+codegen-units = 1
+lto = true
+opt-level = "z"
+panic = "abort"
+strip = true
