@@ -6,9 +6,16 @@
 // *created*; a lock script only runs when a cell is spent, so it could not
 // gate the deposit.
 //
-// Script args (64 bytes):
-//   [0..32)   issuer lock hash   -- the only lock whose attestations are trusted
-//   [32..64)  RWA asset type hash -- the only asset type accepted as collateral
+// Script args (136 bytes; integers little-endian). They fix the loan terms, so
+// every loan cell with the same args is the same pre-agreed loan:
+//   [0..32)     issuer lock hash    -- the only lock whose attestations are
+//                                      trusted; also the lender that receives
+//                                      repayment
+//   [32..64)    RWA asset type hash -- the only asset type accepted as collateral
+//   [64..96)    loan token type hash -- token the loan is paid and repaid in
+//   [96..112)   loan amount, u128   -- released to the borrower on borrow
+//   [112..128)  repay amount, u128  -- owed back to the lender on repay
+//   [128..136)  repay deadline, u64 -- unix seconds
 //
 // Loan cell data (33 bytes):
 //   [0..32)   borrower lock hash
@@ -42,7 +49,7 @@ use ckb_std::{
 ckb_std::entry!(program_entry);
 default_alloc!();
 
-const ARGS_LEN: usize = 64;
+const ARGS_LEN: usize = 136;
 const LOAN_DATA_LEN: usize = 33;
 const ATTESTATION_LEN: usize = 41;
 const STATE_DEPOSITED: u8 = 0;
@@ -73,9 +80,14 @@ fn program_entry() -> i8 {
     }
 }
 
+#[allow(dead_code)] // loan terms are consumed by the borrow/repay/release steps
 struct Config<'a> {
     issuer_lock_hash: &'a [u8],
     asset_type_hash: &'a [u8],
+    loan_token_type_hash: &'a [u8],
+    loan_amount: u128,
+    repay_amount: u128,
+    deadline: u64,
 }
 
 fn check() -> Result<(), Error> {
@@ -87,6 +99,10 @@ fn check() -> Result<(), Error> {
     let cfg = Config {
         issuer_lock_hash: &args[0..32],
         asset_type_hash: &args[32..64],
+        loan_token_type_hash: &args[64..96],
+        loan_amount: u128::from_le_bytes(args[96..112].try_into().unwrap()),
+        repay_amount: u128::from_le_bytes(args[112..128].try_into().unwrap()),
+        deadline: u64::from_le_bytes(args[128..136].try_into().unwrap()),
     };
 
     // The shape of the loan cell group selects the transition.

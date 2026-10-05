@@ -11,7 +11,13 @@ use ckb_testtool::context::Context;
 
 const MAX_CYCLES: u64 = 10_000_000;
 
+// Loan terms baked into the script args.
+const LOAN_AMOUNT: u128 = 1_000;
+const REPAY_AMOUNT: u128 = 1_100;
+const DEADLINE: u64 = 1_800_000_000;
+
 // Error codes from lending/contracts/src/main.rs
+const BAD_ARGS: i8 = 2;
 const BAD_LOAN_DATA: i8 = 3;
 const UNSUPPORTED: i8 = 4;
 const ASSET_NOT_IN_INPUTS: i8 = 5;
@@ -31,6 +37,7 @@ struct Opts {
     att_len_ok: bool,
     loan_state: u8,
     loan_in_inputs: bool,
+    args_len_ok: bool,
 }
 
 impl Opts {
@@ -46,6 +53,7 @@ impl Opts {
             att_len_ok: true,
             loan_state: 0,
             loan_in_inputs: false,
+            args_len_ok: true,
         }
     }
 }
@@ -66,11 +74,19 @@ fn run(o: Opts) -> Result<u64, String> {
     let stranger = lock(&mut ctx, 3);
     let vault = lock(&mut ctx, 4);
     let asset_type = lock(&mut ctx, 9); // any script works as the asset's type
+    let loan_token = lock(&mut ctx, 8); // any script works as the loan token's type
     let borrower_hash = borrower.calc_script_hash();
 
     let mut args = Vec::new();
     args.extend_from_slice(issuer.calc_script_hash().as_slice());
     args.extend_from_slice(asset_type.calc_script_hash().as_slice());
+    args.extend_from_slice(loan_token.calc_script_hash().as_slice());
+    args.extend_from_slice(&LOAN_AMOUNT.to_le_bytes());
+    args.extend_from_slice(&REPAY_AMOUNT.to_le_bytes());
+    args.extend_from_slice(&DEADLINE.to_le_bytes());
+    if !o.args_len_ok {
+        args.pop();
+    }
     let loan_type = ctx
         .build_script_with_hash_type(&lending_op, ScriptHashType::Data2, Bytes::from(args))
         .unwrap();
@@ -190,4 +206,9 @@ fn bad_loan_state() {
 #[test]
 fn spending_loan_cell_rejected() {
     assert_code(run(Opts { loan_in_inputs: true, ..Opts::valid() }), UNSUPPORTED);
+}
+
+#[test]
+fn malformed_script_args() {
+    assert_code(run(Opts { args_len_ok: false, ..Opts::valid() }), BAD_ARGS);
 }
