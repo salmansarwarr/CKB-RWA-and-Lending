@@ -19,7 +19,7 @@ const DEADLINE: u64 = 1_800_000_000;
 // Error codes from lending/contracts/src/main.rs
 const BAD_ARGS: i8 = 2;
 const BAD_LOAN_DATA: i8 = 3;
-const UNSUPPORTED: i8 = 4;
+const BAD_STATE_TRANSITION: i8 = 9;
 const ASSET_NOT_IN_INPUTS: i8 = 5;
 const ASSET_NOT_OWNED: i8 = 6;
 const ASSET_NOT_IN_VAULT: i8 = 7;
@@ -204,8 +204,10 @@ fn bad_loan_state() {
 }
 
 #[test]
-fn spending_loan_cell_rejected() {
-    assert_code(run(Opts { loan_in_inputs: true, ..Opts::valid() }), UNSUPPORTED);
+fn redepositing_over_an_existing_loan_cell_rejected() {
+    // A loan cell among the inputs makes this a borrow attempt (state 0 -> 0),
+    // which fails the state check rather than passing as a second deposit.
+    assert_code(run(Opts { loan_in_inputs: true, ..Opts::valid() }), BAD_STATE_TRANSITION);
 }
 
 #[test]
