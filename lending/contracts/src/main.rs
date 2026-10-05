@@ -73,21 +73,32 @@ fn program_entry() -> i8 {
     }
 }
 
+struct Config<'a> {
+    issuer_lock_hash: &'a [u8],
+    asset_type_hash: &'a [u8],
+}
+
 fn check() -> Result<(), Error> {
     let script = load_script()?;
     let args: ckb_std::ckb_types::bytes::Bytes = script.args().unpack();
     if args.len() != ARGS_LEN {
         return Err(Error::BadArgs);
     }
-    let issuer_lock_hash = &args[0..32];
-    let asset_type_hash = &args[32..64];
+    let cfg = Config {
+        issuer_lock_hash: &args[0..32],
+        asset_type_hash: &args[32..64],
+    };
 
+    // The shape of the loan cell group selects the transition.
     let inputs = count_group(Source::GroupInput);
     let outputs = count_group(Source::GroupOutput);
-    if (inputs, outputs) != (0, 1) {
-        return Err(Error::UnsupportedTransition);
+    match (inputs, outputs) {
+        (0, 1) => check_deposit(&cfg),
+        _ => Err(Error::UnsupportedTransition),
     }
+}
 
+fn check_deposit(cfg: &Config) -> Result<(), Error> {
     let data = load_cell_data(0, Source::GroupOutput)?;
     if data.len() != LOAN_DATA_LEN || data[32] != STATE_DEPOSITED {
         return Err(Error::BadLoanData);
@@ -99,7 +110,7 @@ fn check() -> Result<(), Error> {
     let mut asset_in_inputs = false;
     let mut asset_owned_by_borrower = false;
     for (i, th) in QueryIter::new(load_cell_type_hash, Source::Input).enumerate() {
-        if th.as_ref().map(|h| &h[..]) == Some(asset_type_hash) {
+        if th.as_ref().map(|h| &h[..]) == Some(cfg.asset_type_hash) {
             asset_in_inputs = true;
             if load_cell_lock_hash(i, Source::Input)?[..] == *borrower_lock_hash {
                 asset_owned_by_borrower = true;
@@ -115,7 +126,7 @@ fn check() -> Result<(), Error> {
     let asset_in_vault = QueryIter::new(load_cell_type_hash, Source::Output)
         .enumerate()
         .any(|(i, th)| {
-            th.as_ref().map(|h| &h[..]) == Some(asset_type_hash)
+            th.as_ref().map(|h| &h[..]) == Some(cfg.asset_type_hash)
                 && load_cell_lock_hash(i, Source::Output).ok() == Some(vault_lock_hash)
         });
     if !asset_in_vault {
@@ -125,7 +136,7 @@ fn check() -> Result<(), Error> {
     // (b) KYC attestation among the inputs.
     let mut attested = false;
     for (i, lh) in QueryIter::new(load_cell_lock_hash, Source::Input).enumerate() {
-        if lh[..] != *issuer_lock_hash {
+        if lh[..] != *cfg.issuer_lock_hash {
             continue;
         }
         let d = load_cell_data(i, Source::Input)?;
