@@ -1,6 +1,6 @@
 // lending/contracts/src/main.rs
 //
-// Lending loan-cell type script. Currently implements the DEPOSIT step only.
+// Lending loan-cell type script. Implements the DEPOSIT and BORROW steps.
 //
 // A type script (not a lock) is used because it runs when the loan cell is
 // *created*; a lock script only runs when a cell is spent, so it could not
@@ -31,7 +31,14 @@
 //       co-sign the deposit; it should be re-created as an output to keep it
 //       alive (not enforced here).
 //
-// Every other transition (borrow/repay/release) is rejected until implemented.
+// Borrow tx (one loan cell in, one out, state 0x00 -> 0x01) must satisfy:
+//   - the loan cell keeps its borrower and its lock (the vault);
+//   - the collateral is not touched (no asset cell among the inputs);
+//   - loan-token cells locked by the borrower and totalling at least the loan
+//     amount are among the outputs. The token's own type script decides where
+//     those tokens may come from (e.g. sUDT owner mode for the lender).
+//
+// Every other transition (repay/release) is rejected until implemented.
 
 #![no_std]
 #![no_main]
@@ -53,6 +60,8 @@ const ARGS_LEN: usize = 136;
 const LOAN_DATA_LEN: usize = 33;
 const ATTESTATION_LEN: usize = 41;
 const STATE_DEPOSITED: u8 = 0;
+const STATE_BORROWED: u8 = 1;
+const TOKEN_AMOUNT_LEN: usize = 16;
 const STATUS_PASS: u8 = 1;
 
 #[repr(i8)]
@@ -65,6 +74,10 @@ enum Error {
     AssetNotOwnedByBorrower,
     AssetNotLockedInVault,
     NoValidAttestation,
+    BadStateTransition,
+    VaultChanged,
+    CollateralMoved,
+    LoanNotPaid,
 }
 
 impl From<SysError> for Error {
@@ -80,7 +93,7 @@ fn program_entry() -> i8 {
     }
 }
 
-#[allow(dead_code)] // loan terms are consumed by the borrow/repay/release steps
+#[allow(dead_code)] // repay terms are consumed by the repay step
 struct Config<'a> {
     issuer_lock_hash: &'a [u8],
     asset_type_hash: &'a [u8],
@@ -110,6 +123,13 @@ fn check() -> Result<(), Error> {
     let outputs = count_group(Source::GroupOutput);
     match (inputs, outputs) {
         (0, 1) => check_deposit(&cfg),
+        (1, 1) => {
+            let state = load_cell_data(0, Source::GroupInput)?.get(32).copied();
+            match state {
+                Some(STATE_DEPOSITED) => check_borrow(&cfg),
+                _ => Err(Error::UnsupportedTransition),
+            }
+        }
         _ => Err(Error::UnsupportedTransition),
     }
 }
@@ -165,6 +185,52 @@ fn check_deposit(cfg: &Config) -> Result<(), Error> {
         return Err(Error::NoValidAttestation);
     }
     Ok(())
+}
+
+fn check_borrow(cfg: &Config) -> Result<(), Error> {
+    let input = load_cell_data(0, Source::GroupInput)?;
+    let output = load_cell_data(0, Source::GroupOutput)?;
+    if input.len() != LOAN_DATA_LEN || output.len() != LOAN_DATA_LEN {
+        return Err(Error::BadLoanData);
+    }
+    if output[0..32] != input[0..32] || output[32] != STATE_BORROWED {
+        return Err(Error::BadStateTransition);
+    }
+    let borrower_lock_hash = &input[0..32];
+    if load_cell_lock_hash(0, Source::GroupInput)? != load_cell_lock_hash(0, Source::GroupOutput)? {
+        return Err(Error::VaultChanged);
+    }
+
+    // The collateral stays where it is: it must not be spent by this tx.
+    let asset_spent = QueryIter::new(load_cell_type_hash, Source::Input)
+        .any(|th| th.as_ref().map(|h| &h[..]) == Some(cfg.asset_type_hash));
+    if asset_spent {
+        return Err(Error::CollateralMoved);
+    }
+
+    if token_total(Source::Output, cfg.loan_token_type_hash, borrower_lock_hash)? < cfg.loan_amount {
+        return Err(Error::LoanNotPaid);
+    }
+    Ok(())
+}
+
+/// Sum of the u128 amounts (first 16 data bytes, sUDT layout) of all cells in
+/// `source` that carry the token type and are locked by `lock_hash`.
+fn token_total(source: Source, token_type_hash: &[u8], lock_hash: &[u8]) -> Result<u128, Error> {
+    let mut total: u128 = 0;
+    for (i, th) in QueryIter::new(load_cell_type_hash, source).enumerate() {
+        if th.as_ref().map(|h| &h[..]) != Some(token_type_hash)
+            || load_cell_lock_hash(i, source)?[..] != *lock_hash
+        {
+            continue;
+        }
+        let d = load_cell_data(i, source)?;
+        if d.len() < TOKEN_AMOUNT_LEN {
+            continue;
+        }
+        total = total.saturating_add(u128::from_le_bytes(d[0..TOKEN_AMOUNT_LEN].try_into().unwrap()));
+    }
+    Ok(total)
 }
 
 fn count_group(source: Source) -> usize {
