@@ -8,7 +8,52 @@ do not edit it by hand.
 
 <!-- BEGIN deployment-record -->
 
-_Not deployed yet. Run `./scripts/testnet/demo.sh`, which fills this in._
+### Transactions
+
+| Step | Transaction |
+| --- | --- |
+| Contracts deployed (asset + lending code cells) | [`0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d`](https://pudge.explorer.nervos.org/transaction/0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d) |
+| 1. RWA asset issued | [`0x51e3da913d78da42db17b245ddf1e119dcc0112bd29fa60d531ad4a8934f7d07`](https://pudge.explorer.nervos.org/transaction/0x51e3da913d78da42db17b245ddf1e119dcc0112bd29fa60d531ad4a8934f7d07) |
+| 2. KYC attestation written (mocked verification) | [`0x144311a53e7c323b4edd459acf83727137117106d962a8aff2b47d4be2a83607`](https://pudge.explorer.nervos.org/transaction/0x144311a53e7c323b4edd459acf83727137117106d962a8aff2b47d4be2a83607) |
+| 3. Deposit (collateral locked + loan cell) | [`0x39f2cf5bc6a6ca0d00f340bacccbde1208560570108db372d3b61d87ffc12061`](https://pudge.explorer.nervos.org/transaction/0x39f2cf5bc6a6ca0d00f340bacccbde1208560570108db372d3b61d87ffc12061) |
+| 4. Borrow (loan released to borrower) | [`0xd9a3d4ee47054803921cea8ab89e84c79ce9def0837c3a5c03c3b517e74d54dc`](https://pudge.explorer.nervos.org/transaction/0xd9a3d4ee47054803921cea8ab89e84c79ce9def0837c3a5c03c3b517e74d54dc) |
+|    Interest tokens minted to borrower (demo setup) | [`0x462ea4d47bed2d6f85e1cdb1a2c34bfcd4398ae53c37e37c9afd160545c07253`](https://pudge.explorer.nervos.org/transaction/0x462ea4d47bed2d6f85e1cdb1a2c34bfcd4398ae53c37e37c9afd160545c07253) |
+| 5. Repay (before deadline) | [`0x556720b28e007ad8da112024ef8f36202bde2286b03d213220aa85d750ac4e16`](https://pudge.explorer.nervos.org/transaction/0x556720b28e007ad8da112024ef8f36202bde2286b03d213220aa85d750ac4e16) |
+| 6. Release (collateral returned) | [`0x52dea1b098805128d017d9826f848fb88208524601ae761ea23027baf2274b9d`](https://pudge.explorer.nervos.org/transaction/0x52dea1b098805128d017d9826f848fb88208524601ae761ea23027baf2274b9d) |
+
+### Contracts
+
+| Contract | Code hash (data hash) | Hash type | Cell dep |
+| --- | --- | --- | --- |
+| asset | `0x4d37244d7df40dabb6f1069aaed28b5491e9b11f6d2f4e8a1ab5124f44d9cebe` | data2 | [`0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d:0`](https://pudge.explorer.nervos.org/transaction/0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d) |
+| lending | `0x1a7d9c06babf6203f4ba12e36b67c1b1856681f445a75b0e4bc54325c25fd87a` | data2 | [`0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d:1`](https://pudge.explorer.nervos.org/transaction/0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d) |
+
+### RWA asset type script
+
+```json
+{
+  "codeHash": "0x4d37244d7df40dabb6f1069aaed28b5491e9b11f6d2f4e8a1ab5124f44d9cebe",
+  "hashType": "data2",
+  "args": "0xef586cd3b133215d62e5d4128ed896e12fbd7ce4487029a0e7ec1a6c5f068958"
+}
+```
+
+### Loan type script and terms
+
+```json
+{
+  "typeScript": {
+    "codeHash": "0x1a7d9c06babf6203f4ba12e36b67c1b1856681f445a75b0e4bc54325c25fd87a",
+    "hashType": "data2",
+    "args": "0xfd861b2ea9de23513a88e9b5cb96c10ed2bb2a8e9e6f90307e3de1889843b32c976776667148969f6b92600448d2920f516039122c4a9ed1db47527bd18dee2c7c43548f6caaa8495ebad237236856fc9fe40e3a5c2829f842e17da49a0ec77de80300000000000000000000000000004c04000000000000000000000000000079e3c46a00000000"
+  },
+  "terms": {
+    "loanAmount": "1000",
+    "repayAmount": "1100",
+    "deadline": 1791288185
+  }
+}
+```
 
 <!-- END deployment-record -->
 
