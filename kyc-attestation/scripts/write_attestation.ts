@@ -112,8 +112,11 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+  main().then(
+    () => process.exit(0), // the RPC client would otherwise keep Node alive
+    (e) => {
+      console.error(e);
+      process.exit(1);
+    },
+  );
 }

@@ -47,7 +47,10 @@ async function main() {
   console.log(`minted ${interest} tokens to the borrower to cover interest`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main().then(
+  () => process.exit(0), // the RPC client would otherwise keep Node alive
+  (e) => {
+    console.error(e);
+    process.exit(1);
+  },
+);

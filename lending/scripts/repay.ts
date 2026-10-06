@@ -80,7 +80,10 @@ async function main() {
   console.log(`repaid ${repayAmount} loan tokens to the lender`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main().then(
+  () => process.exit(0), // the RPC client would otherwise keep Node alive
+  (e) => {
+    console.error(e);
+    process.exit(1);
+  },
+);
