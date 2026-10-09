@@ -20,6 +20,11 @@
       </div>
 
       <div class="nav-actions">
+        <div class="rpc-status-pill" id="rpcStatusBtn" title="Click to view CKB Testnet RPC Node details">
+          <span class="status-dot online pulse" id="rpcStatusDot"></span>
+          <span class="rpc-label">CKB TESTNET: <strong id="rpcBlockDisplay">SYNCING...</strong></span>
+          <span class="rpc-ping-badge" id="rpcPingDisplay">--ms</span>
+        </div>
         <div class="wallet-status-pill" id="walletStatusIndicator">
           <span class="status-dot online"></span>
           <span class="status-label">WALLET CONNECTED</span>
@@ -206,6 +211,37 @@
                 <p class="state-desc" id="stateDescriptionText">
                   The fixed-term loan contract validates collateral ownership and a non-expired KYC attestation before proceeding.
                 </p>
+                <div class="onchain-proof-card" id="onchainProofCard">
+                  <div class="onchain-proof-header">
+                    <span class="proof-label">LIVE CKB TESTNET STATUS</span>
+                    <span class="proof-badge" id="proofStatusBadge">
+                      <span class="status-dot online pulse" id="proofDot"></span>
+                      <span id="proofStatusText">VERIFYING...</span>
+                    </span>
+                  </div>
+                  <div class="proof-metrics-grid">
+                    <div class="proof-item">
+                      <span class="proof-sub">TX HASH</span>
+                      <span class="proof-hash-val copyable" id="proofHashVal" title="Click to copy full hash">0xd9a3...54dc</span>
+                    </div>
+                    <div class="proof-item">
+                      <span class="proof-sub">BLOCK HEIGHT</span>
+                      <span class="proof-mono-val" id="proofBlockVal">#22,687,726</span>
+                    </div>
+                    <div class="proof-item">
+                      <span class="proof-sub">CYCLES</span>
+                      <span class="proof-mono-val" id="proofCyclesVal">1,688,612</span>
+                    </div>
+                  </div>
+                  <button class="btn btn-inspect-chain" id="btnInspectCurrentTx">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    Inspect Raw Cell State via CKB RPC
+                  </button>
+                </div>
+
                 <div class="action-btn-row">
                   <button class="btn btn-action-primary" id="stageActionBtn">
                     <span id="stageActionBtnText">Simulate Repay</span>
@@ -444,6 +480,100 @@ Cell Dep:  0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d:1<
         <div class="code-block-wrapper">
           <div class="code-label">Loan Script Args (136 Bytes Little-Endian)</div>
           <pre class="code-snippet"><code>0xfd861b2ea9de23513a88e9b5cb96c10ed2bb2a8e9e6f90307e3de1889843b32c97677666...</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: LIVE ON-CHAIN TRANSACTION INSPECTOR -->
+  <div class="modal-backdrop" id="txInspectorModal" role="dialog" aria-modal="true" aria-labelledby="modalInspectTitle" hidden>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div>
+          <div class="card-eyebrow">LIVE CKB TESTNET RPC INSPECTOR</div>
+          <h3 class="modal-title" id="modalInspectTitle">On-Chain Transaction Details</h3>
+        </div>
+        <button class="modal-close-btn" id="closeInspectorBtn" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="inspector-summary-banner" id="inspectorBanner">
+          <div class="status-indicator-row">
+            <span class="status-dot online"></span>
+            <span class="inspector-status-text" id="inspectorStatusText">COMMITTED ON-CHAIN</span>
+          </div>
+          <a class="btn-link" id="inspectorExplorerLink" href="#" target="_blank" rel="noopener noreferrer">
+            Open in CKB Explorer ↗
+          </a>
+        </div>
+
+        <div class="inspector-stats-grid">
+          <div class="inspector-stat-box">
+            <span class="stat-box-label">BLOCK HASH</span>
+            <span class="stat-box-val mono" id="inspectorBlockHash">—</span>
+          </div>
+          <div class="inspector-stat-box">
+            <span class="stat-box-label">EXECUTION CYCLES</span>
+            <span class="stat-box-val highlight-gold" id="inspectorCycles">—</span>
+          </div>
+          <div class="inspector-stat-box">
+            <span class="stat-box-label">CELL INPUTS</span>
+            <span class="stat-box-val" id="inspectorInputsCount">—</span>
+          </div>
+          <div class="inspector-stat-box">
+            <span class="stat-box-label">CELL OUTPUTS</span>
+            <span class="stat-box-val" id="inspectorOutputsCount">—</span>
+          </div>
+        </div>
+
+        <div class="code-block-wrapper">
+          <div class="code-label-row">
+            <span>RAW CKB RPC NODE RESPONSE (`get_transaction`)</span>
+            <button class="btn-copy-code" id="btnCopyRawTx">Copy JSON</button>
+          </div>
+          <pre class="code-snippet-scroll"><code id="inspectorRawJson">Loading live transaction data from CKB testnet...</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CKB RPC NODE SETTINGS -->
+  <div class="modal-backdrop" id="rpcModal" role="dialog" aria-modal="true" aria-labelledby="modalRpcTitle" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalRpcTitle">CKB Testnet Node Connection</h3>
+        <button class="modal-close-btn" id="closeRpcModalBtn" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-intro">
+          This frontend connects directly via JSON-RPC to the public Nervos CKB Testnet (Pudge) node.
+        </p>
+
+        <div class="rpc-config-box">
+          <label class="rpc-config-label" for="rpcUrlInput">Active RPC Endpoint</label>
+          <div class="rpc-input-row">
+            <input type="text" id="rpcUrlInput" class="rpc-input" value="https://testnet.ckb.dev/rpc">
+            <button class="btn btn-primary btn-sm" id="btnTestRpc">Ping & Reconnect</button>
+          </div>
+          <div class="rpc-feedback" id="rpcFeedbackText">Status: Connected to public CKB testnet</div>
+        </div>
+
+        <div class="specs-table">
+          <div class="spec-row">
+            <dt class="spec-term">Network Name</dt>
+            <dd class="spec-value">CKB Testnet (Pudge)</dd>
+          </div>
+          <div class="spec-row">
+            <dt class="spec-term">Current Tip Block</dt>
+            <dd class="spec-value highlight-gold" id="rpcModalBlock">—</dd>
+          </div>
+          <div class="spec-row">
+            <dt class="spec-term">RPC Methods Used</dt>
+            <dd class="spec-value mono">get_tip_block_number, get_transaction</dd>
+          </div>
+          <div class="spec-row">
+            <dt class="spec-term">CORS Policy</dt>
+            <dd class="spec-value">Enabled (Direct Browser Fetch)</dd>
+          </div>
         </div>
       </div>
     </div>
