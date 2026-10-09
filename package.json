@@ -12,7 +12,8 @@
     "build:asset": "RUSTFLAGS=\"-C target-feature=-a\" cargo +1.89.0 build -p rwa-asset-type --release --target riscv64imac-unknown-none-elf",
     "build:lending": "RUSTFLAGS=\"-C target-feature=-a\" cargo +1.89.0 build -p lending-type --release --target riscv64imac-unknown-none-elf",
     "build:contracts": "npm run build:asset && npm run build:lending",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ui": "npx -y serve ui -l 3000"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

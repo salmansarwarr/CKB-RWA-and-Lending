@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CKB RWA Lending — Fixed-Term Lending on Nervos</title>
+  <meta name="description" content="A fixed-term lending flow for self-originated real-world asset claims native on CKB, gated by KYC attestation.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- TOP NAVIGATION -->
+    <header class="top-nav">
+      <div class="nav-brand">
+        <span class="brand-badge"></span>
+        <span class="brand-text">LENDING_FLOW</span>
+      </div>
+
+      <div class="nav-actions">
+        <div class="wallet-status-pill" id="walletStatusIndicator">
+          <span class="status-dot online"></span>
+          <span class="status-label">WALLET CONNECTED</span>
+        </div>
+        <button class="wallet-button" id="walletBtn" aria-label="Wallet menu">
+          <svg class="wallet-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="5" width="20" height="14" rx="3"></rect>
+            <line x1="2" y1="10" x2="22" y2="10"></line>
+          </svg>
+          <span class="wallet-address" id="walletAddressDisplay">0x7b...91c4</span>
+          <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- HERO SECTION -->
+    <main class="main-content">
+      <section class="hero-section">
+        <div class="hero-left">
+          <div class="tag-badge">
+            <span class="tag-dot"></span>
+            <span>TESTNET PROTOTYPE</span>
+          </div>
+          <h1 class="hero-title">
+            Lend against a claim.<br>
+            <span class="highlight-gold">Native on CKB.</span>
+          </h1>
+          <p class="hero-subtitle">
+            A fixed-term lending flow for self-originated real-world asset claims —
+            without a bridge, oracle, or external custody dependency.
+          </p>
+        </div>
+
+        <div class="hero-cta-group">
+          <button class="btn btn-secondary" id="openHowItWorksBtn" id="btnHowItWorks">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            How it works
+          </button>
+          <a class="btn btn-primary" id="viewSourceBtn" href="https://github.com" target="_blank" rel="noopener noreferrer">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            View source
+            <span class="external-arrow">↗</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- STATS METRICS ROW -->
+      <section class="metrics-row">
+        <div class="metric-card">
+          <div class="metric-label">COLLATERAL VALUE</div>
+          <div class="metric-value-row">
+            <span class="metric-number" id="metricCollateralVal">24,000</span>
+            <span class="metric-unit">CKB</span>
+          </div>
+          <div class="metric-subtext" id="metricCollateralSub">Invoice #INV-2026-0042</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">LOAN AMOUNT</div>
+          <div class="metric-value-row">
+            <span class="metric-number" id="metricLoanVal">18,000</span>
+            <span class="metric-unit">CKB</span>
+          </div>
+          <div class="metric-subtext" id="metricLoanSub">75% fixed LTV</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">TERM REMAINING</div>
+          <div class="metric-value-row">
+            <span class="metric-number" id="metricTermVal">27</span>
+            <span class="metric-unit">days</span>
+          </div>
+          <div class="metric-subtext" id="metricTermSub">Due 05 Oct 2026</div>
+        </div>
+      </section>
+
+      <!-- MAIN LENDING WORKSPACE -->
+      <section class="lending-workspace-grid">
+        <!-- LEFT: LIFECYCLE CONTROLLER CARD -->
+        <div class="workspace-card lifecycle-card">
+          <div class="card-header">
+            <div>
+              <div class="card-eyebrow">LOAN LIFECYCLE</div>
+              <h2 class="card-title" id="lifecycleHeading">Asset to release</h2>
+            </div>
+            <div class="progress-badge" id="progressBadge">60% COMPLETE</div>
+          </div>
+
+          <!-- STEPPER -->
+          <div class="stepper-track" role="tablist" aria-label="Loan stages">
+            <!-- Line connector behind steps -->
+            <div class="stepper-line-bg"></div>
+            <div class="stepper-line-progress" id="stepperProgressBar" style="width: 60%;"></div>
+
+            <!-- Step 1: ASSET -->
+            <button class="step-item completed" data-step="1" id="stepBtn-1" title="Step 1: Asset Issuance">
+              <div class="step-circle">
+                <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <span class="step-label">ASSET</span>
+            </button>
+
+            <!-- Step 2: KYC -->
+            <button class="step-item completed" data-step="2" id="stepBtn-2" title="Step 2: KYC Attestation">
+              <div class="step-circle">
+                <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <span class="step-label">KYC</span>
+            </button>
+
+            <!-- Step 3: DEPOSIT -->
+            <button class="step-item completed" data-step="3" id="stepBtn-3" title="Step 3: Collateral Deposit">
+              <div class="step-circle">
+                <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <span class="step-label">DEPOSIT</span>
+            </button>
+
+            <!-- Step 4: BORROW (ACTIVE IN MOCKUP) -->
+            <button class="step-item active" data-step="4" id="stepBtn-4" title="Step 4: Borrow / Disbursed">
+              <div class="step-circle">
+                <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+              </div>
+              <span class="step-label">BORROW</span>
+            </button>
+
+            <!-- Step 5: REPAY -->
+            <button class="step-item pending" data-step="5" id="stepBtn-5" title="Step 5: Repayment">
+              <div class="step-circle">
+                <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+              </div>
+              <span class="step-label">REPAY</span>
+            </button>
+
+            <!-- Step 6: RELEASE -->
+            <button class="step-item pending" data-step="6" id="stepBtn-6" title="Step 6: Collateral Release">
+              <div class="step-circle">
+                <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+              </div>
+              <span class="step-label">RELEASE</span>
+            </button>
+          </div>
+
+          <!-- SPLIT DETAIL PANELS -->
+          <div class="lifecycle-details-grid">
+            <!-- LEFT SUBPANEL: STAGE ACTION -->
+            <div class="stage-action-box">
+              <div class="stage-disbursed-tag" id="stageDisbursedTag">04 CKB disbursed</div>
+
+              <div class="state-validation-card">
+                <div class="state-validation-header">
+                  <span class="state-eyebrow">CURRENT STATE</span>
+                  <span class="valid-badge" id="stateValidBadge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="badge-icon">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span id="stateStatusText">VALID</span>
+                  </span>
+                </div>
+                <p class="state-desc" id="stateDescriptionText">
+                  The fixed-term loan contract validates collateral ownership and a non-expired KYC attestation before proceeding.
+                </p>
+                <div class="action-btn-row">
+                  <button class="btn btn-action-primary" id="stageActionBtn">
+                    <span id="stageActionBtnText">Simulate Repay</span>
+                    <span class="arrow-glyph">&gt;</span>
+                  </button>
+                  <button class="btn btn-ghost-icon" id="resetFlowBtn" title="Reset Lifecycle to Beginning">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                      <path d="M3 3v5h5"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT SUBPANEL: SPECIFICATION TABLE -->
+            <div class="stage-specs-box">
+              <dl class="specs-table">
+                <div class="spec-row">
+                  <dt class="spec-term">Protocol</dt>
+                  <dd class="spec-value" id="specProtocol">CKB · Nervos</dd>
+                </div>
+                <div class="spec-row">
+                  <dt class="spec-term">Loan type</dt>
+                  <dd class="spec-value" id="specLoanType">Fixed-term</dd>
+                </div>
+                <div class="spec-row">
+                  <dt class="spec-term">Interest</dt>
+                  <dd class="spec-value highlight-gold" id="specInterest">8.5% APR</dd>
+                </div>
+                <div class="spec-row">
+                  <dt class="spec-term">Maturity</dt>
+                  <dd class="spec-value" id="specMaturity">05 Oct 2026</dd>
+                </div>
+                <div class="spec-row">
+                  <dt class="spec-term">Attestation</dt>
+                  <dd class="spec-value" id="specAttestation">Revocable Cell</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: ASSET DETAILS & ARCHITECTURE EXPLAINER -->
+        <div class="workspace-sidebar">
+          <!-- CARD 1: REFERENCE ASSET -->
+          <div class="workspace-card asset-info-card">
+            <div class="asset-header">
+              <div class="asset-eyebrow">Reference asset · native cell</div>
+              <div class="asset-title-row">
+                <h3 class="asset-title" id="assetTitle">Warehouse receipt</h3>
+                <div class="verified-circle-badge" title="Verified Asset Cell">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <dl class="asset-details-list">
+              <div class="asset-detail-row">
+                <dt>Claim ID</dt>
+                <dd class="mono-val" id="claimIdVal">WR-CKB-0042</dd>
+              </div>
+              <div class="asset-detail-row">
+                <dt>Issuer</dt>
+                <dd id="issuerVal">Northstar Storage Ltd.</dd>
+              </div>
+              <div class="asset-detail-row">
+                <dt>Commodity</dt>
+                <dd id="commodityVal">Copper cathodes</dd>
+              </div>
+              <div class="asset-detail-row">
+                <dt>Quantity</dt>
+                <dd id="quantityVal">1.2 metric tons</dd>
+              </div>
+              <div class="asset-detail-row">
+                <dt>Cell lock</dt>
+                <dd class="mono-val copyable" id="cellLockVal" title="Click to copy full lock hash">
+                  <span>ckb1q...8a4e</span>
+                  <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </dd>
+              </div>
+            </dl>
+
+            <div class="asset-toggle-bar">
+              <button class="asset-switch-btn active" data-asset="receipt" id="btnReceiptAsset">Warehouse Receipt</button>
+              <button class="asset-switch-btn" data-asset="invoice" id="btnInvoiceAsset">Trade Invoice</button>
+            </div>
+          </div>
+
+          <!-- CARD 2: WHY NATIVE ORIGIN -->
+          <div class="workspace-card why-native-card">
+            <div class="why-native-header">
+              <div class="why-icon-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </div>
+              <h3 class="why-title">Why native origin?</h3>
+            </div>
+            <p class="why-text">
+              This reference build keeps the asset and lending state on CKB. A custom attestation Cell is used for clarity now; an existing claim standard can replace it without changing the loan contract interface.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM: REPRODUCIBLE ACTIVITY / TRANSACTIONS -->
+      <section class="activity-section">
+        <div class="activity-header">
+          <div>
+            <div class="card-eyebrow">REPRODUCIBLE ACTIVITY</div>
+            <h2 class="card-title">Testnet transactions</h2>
+          </div>
+          <div class="activity-header-actions">
+            <button class="btn btn-secondary btn-sm" id="btnViewDeploymentJson">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+              Contract Data
+            </button>
+            <a class="btn-link" href="https://pudge.explorer.nervos.org" target="_blank" rel="noopener noreferrer">
+              VIEW EXPLORER <span class="external-arrow">↗</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="tx-table">
+            <thead>
+              <tr>
+                <th scope="col">ACTION</th>
+                <th scope="col">TRANSACTION HASH</th>
+                <th scope="col">TIME</th>
+                <th scope="col">STATUS</th>
+              </tr>
+            </thead>
+            <tbody id="txTableBody">
+              <!-- Dynamically rendered or preloaded rows -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="app-footer">
+      <div class="footer-left">
+        <span>CKB RWA LENDING / REFERENCE IMPLEMENTATION</span>
+      </div>
+      <div class="footer-right">
+        <span class="status-dot gold"></span>
+        <span class="footer-tag">TESTNET</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- MODAL: HOW IT WORKS -->
+  <div class="modal-backdrop" id="howItWorksModal" role="dialog" aria-modal="true" aria-labelledby="modalHowTitle" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalHowTitle">Architecture & Verification Flow</h3>
+        <button class="modal-close-btn" id="closeHowItWorksBtn" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-intro">
+          This implementation executes a complete Real World Asset (RWA) claim backed loan lifecycle directly on Nervos CKB Testnet (Pudge) with no bridges or off-chain price oracles.
+        </p>
+
+        <div class="flow-diagram-container">
+          <div class="flow-step-chip">RWA Asset</div>
+          <span class="flow-arrow">➔</span>
+          <div class="flow-step-chip">KYC Attestation</div>
+          <span class="flow-arrow">➔</span>
+          <div class="flow-step-chip">Deposit</div>
+          <span class="flow-arrow">➔</span>
+          <div class="flow-step-chip">Borrow</div>
+          <span class="flow-arrow">➔</span>
+          <div class="flow-step-chip">Repay</div>
+          <span class="flow-arrow">➔</span>
+          <div class="flow-step-chip">Release</div>
+        </div>
+
+        <div class="modal-grid">
+          <div class="modal-grid-card">
+            <h4>1. Native RWA Asset</h4>
+            <p>Single Cell representing a verified claim (e.g., warehouse commodity receipt or commercial trade invoice). Governed by the <code>rwa-asset-type</code> RISC-V contract.</p>
+          </div>
+          <div class="modal-grid-card">
+            <h4>2. Mocked KYC Attestation</h4>
+            <p>Issuer-revocable attestation Cell storing the subject lock hash and pass status. Proves eligibility without requiring external oracle dependencies at execution.</p>
+          </div>
+          <div class="modal-grid-card">
+            <h4>3. Loan Cell State Machine</h4>
+            <p>Carries 33 bytes: borrower lock hash + state (<code>0x00</code> deposited, <code>0x01</code> borrowed, <code>0x02</code> repaid). Script args fix loan amount, repay amount, and unix deadline.</p>
+          </div>
+          <div class="modal-grid-card">
+            <h4>4. Release & Repay Settlement</h4>
+            <p>Repay transaction transfers pre-agreed loan + interest tokens back to lender. Release consumes loan cell and returns original RWA asset cell to borrower.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DEPLOYMENT CONTRACTS & CODE HASHES -->
+  <div class="modal-backdrop" id="deploymentModal" role="dialog" aria-modal="true" aria-labelledby="modalDeployTitle" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalDeployTitle">Testnet Contract Cell Deps & Hashes</h3>
+        <button class="modal-close-btn" id="closeDeploymentBtn" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-intro">
+          Verified against CKB Pudge Testnet via <code>scripts/deploy/deployment.testnet.json</code>.
+        </p>
+
+        <div class="code-block-wrapper">
+          <div class="code-label">RWA Asset Contract (data2)</div>
+          <pre class="code-snippet"><code>Code Hash: 0x4d37244d7df40dabb6f1069aaed28b5491e9b11f6d2f4e8a1ab5124f44d9cebe
+Cell Dep:  0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d:0</code></pre>
+        </div>
+
+        <div class="code-block-wrapper">
+          <div class="code-label">Lending Contract (data2)</div>
+          <pre class="code-snippet"><code>Code Hash: 0x1a7d9c06babf6203f4ba12e36b67c1b1856681f445a75b0e4bc54325c25fd87a
+Cell Dep:  0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d:1</code></pre>
+        </div>
+
+        <div class="code-block-wrapper">
+          <div class="code-label">Loan Script Args (136 Bytes Little-Endian)</div>
+          <pre class="code-snippet"><code>0xfd861b2ea9de23513a88e9b5cb96c10ed2bb2a8e9e6f90307e3de1889843b32c97677666...</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
