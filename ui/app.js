@@ -318,6 +318,11 @@ const walletModal = document.getElementById("walletModal");
 const closeWalletModalBtn = document.getElementById("closeWalletModalBtn");
 const btnDisconnectWallet = document.getElementById("btnDisconnectWallet");
 const walletFullAddress = document.getElementById("walletFullAddress");
+const walletFullAddressText = document.getElementById("walletFullAddressText");
+const walletShortHashVal = document.getElementById("walletShortHashVal");
+const walletBalanceVal = document.getElementById("walletBalanceVal");
+
+let currentWallet = null;
 
 // Asset Switch
 const btnReceiptAsset = document.getElementById("btnReceiptAsset");
@@ -569,6 +574,37 @@ for (let i = 1; i <= 6; i++) {
   }
 }
 
+// Generates a unique, cryptographically random CKB testnet wallet each time
+function generateRandomWallet() {
+  const randBytes = new Uint8Array(20);
+  window.crypto.getRandomValues(randBytes);
+  const hex = Array.from(randBytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  const shortHex = `0x${hex.slice(0, 4)}...${hex.slice(-4)}`;
+  const fullHex = `0x${hex}`;
+
+  // Generate realistic Bech32-style CKB Testnet (Pudge) address
+  const bech32Alphabet = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+  const tailBytes = new Uint8Array(36);
+  window.crypto.getRandomValues(tailBytes);
+  let tailStr = "";
+  for (let i = 0; i < tailBytes.length; i++) {
+    tailStr += bech32Alphabet[tailBytes[i] % bech32Alphabet.length];
+  }
+  const fullAddress = `ckb1qzda0cr08m85${tailStr}`;
+  const shortAddress = `${fullAddress.slice(0, 13)}...${fullAddress.slice(-8)}`;
+
+  // Random realistic funded testnet balance
+  const balance = (Math.floor(Math.random() * 45) + 30) * 1000 + Math.floor(Math.random() * 900);
+
+  return {
+    fullHex,
+    shortHex,
+    fullAddress,
+    shortAddress,
+    balance: balance.toLocaleString()
+  };
+}
+
 // Wallet Management
 async function startWalletCreation() {
   if (isCreatingWallet || walletConnected) return;
@@ -595,6 +631,9 @@ async function startWalletCreation() {
   // Realistic asynchronous delay
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
+  // Generate a brand new unique wallet address
+  currentWallet = generateRandomWallet();
+
   isCreatingWallet = false;
   walletConnected = true;
 
@@ -608,21 +647,30 @@ async function startWalletCreation() {
       <line x1="2" y1="10" x2="22" y2="10"></line>
     `;
   }
-  walletAddressDisplay.textContent = "0x7b...91c4";
+  walletAddressDisplay.textContent = currentWallet.shortHex;
   if (walletChevron) walletChevron.style.display = "inline-block";
+
+  // Update modal data
+  if (walletShortHashVal) walletShortHashVal.textContent = currentWallet.shortHex;
+  if (walletFullAddressText) walletFullAddressText.textContent = currentWallet.shortAddress;
+  if (walletBalanceVal) walletBalanceVal.textContent = currentWallet.balance;
+  if (walletFullAddress) {
+    walletFullAddress.setAttribute("data-full", currentWallet.fullAddress);
+  }
 
   if (walletStatusDot) walletStatusDot.className = "status-dot online";
   if (walletStatusLabel) walletStatusLabel.textContent = "WALLET CONNECTED";
 
-  showToast("✓ Testnet wallet created: 0x7b23...91c4");
+  showToast(`✓ Testnet wallet created: ${currentWallet.shortHex}`);
   setTimeout(() => {
-    showToast("Funded with 48,500 testnet CKB");
+    showToast(`Funded with ${currentWallet.balance} testnet CKB`);
   }, 1200);
 }
 
 function disconnectWallet() {
   walletConnected = false;
   isCreatingWallet = false;
+  currentWallet = null;
 
   walletBtn.disabled = false;
   walletBtn.classList.add("not-connected");
@@ -730,7 +778,8 @@ btnDisconnectWallet.addEventListener("click", () => {
 });
 if (walletFullAddress) {
   walletFullAddress.addEventListener("click", () => {
-    copyToClipboard("ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xw3q8a4e", "Full CKB testnet address copied!");
+    const addr = (currentWallet && currentWallet.fullAddress) ? currentWallet.fullAddress : "ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xw3q8a4e";
+    copyToClipboard(addr, "Full CKB testnet address copied!");
   });
 }
 
