@@ -26,16 +26,16 @@
           <span class="rpc-ping-badge" id="rpcPingDisplay">--ms</span>
         </div>
         <div class="wallet-status-pill" id="walletStatusIndicator">
-          <span class="status-dot online"></span>
-          <span class="status-label">WALLET CONNECTED</span>
+          <span class="status-dot disconnected" id="walletStatusDot"></span>
+          <span class="status-label" id="walletStatusLabel">NOT CONNECTED</span>
         </div>
-        <button class="wallet-button" id="walletBtn" aria-label="Wallet menu">
-          <svg class="wallet-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button class="wallet-button not-connected" id="walletBtn" aria-label="Wallet menu">
+          <svg class="wallet-icon" id="walletIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="5" width="20" height="14" rx="3"></rect>
             <line x1="2" y1="10" x2="22" y2="10"></line>
           </svg>
-          <span class="wallet-address" id="walletAddressDisplay">0x7b...91c4</span>
-          <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <span class="wallet-address" id="walletAddressDisplay">Create / Connect Wallet</span>
+          <svg class="chevron-icon" id="walletChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </button>
@@ -574,6 +574,52 @@ Cell Dep:  0x02fa48cc3bed363df962b125f4fccf15e2869835c3c6af63c59cd1f760ae684d:1<
             <dt class="spec-term">CORS Policy</dt>
             <dd class="spec-value">Enabled (Direct Browser Fetch)</dd>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: WALLET DETAILS -->
+  <div class="modal-backdrop" id="walletModal" role="dialog" aria-modal="true" aria-labelledby="modalWalletTitle" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalWalletTitle">Connected Testnet Wallet</h3>
+        <button class="modal-close-btn" id="closeWalletModalBtn" aria-label="Close modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="wallet-summary-card">
+          <div class="wallet-balance-row">
+            <span class="wallet-bal-label">TESTNET BALANCE</span>
+            <div class="wallet-bal-val">
+              <span>48,500</span> <span class="highlight-gold">CKB</span>
+            </div>
+          </div>
+          <div class="wallet-role-pill">Borrower / RWA Collateral Owner</div>
+        </div>
+
+        <div class="specs-table">
+          <div class="spec-row">
+            <dt class="spec-term">Network</dt>
+            <dd class="spec-value">CKB Testnet (Pudge)</dd>
+          </div>
+          <div class="spec-row">
+            <dt class="spec-term">Short Hash</dt>
+            <dd class="spec-value mono">0x7b23...91c4</dd>
+          </div>
+          <div class="spec-row">
+            <dt class="spec-term">Full CKB Address</dt>
+            <dd class="spec-value mono copyable" id="walletFullAddress" title="Click to copy full address">
+              <span>ckb1qzda0cr08...waa50xw3q8a4e</span>
+              <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;margin-left:4px;">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </dd>
+          </div>
+        </div>
+
+        <div class="wallet-modal-actions">
+          <button class="btn btn-danger-outline" id="btnDisconnectWallet">Disconnect Wallet</button>
         </div>
       </div>
     </div>

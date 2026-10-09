@@ -251,7 +251,8 @@ const TRANSACTIONS = [
 
 let currentStep = 4;
 let selectedAsset = "receipt";
-let walletConnected = true;
+let walletConnected = false;
+let isCreatingWallet = false;
 
 // DOM Elements
 const progressBadge = document.getElementById("progressBadge");
@@ -305,10 +306,18 @@ const rpcUrlInput = document.getElementById("rpcUrlInput");
 const btnTestRpc = document.getElementById("btnTestRpc");
 const rpcFeedbackText = document.getElementById("rpcFeedbackText");
 
-// Wallet
+// Wallet Elements
 const walletBtn = document.getElementById("walletBtn");
 const walletStatusIndicator = document.getElementById("walletStatusIndicator");
+const walletStatusDot = document.getElementById("walletStatusDot");
+const walletStatusLabel = document.getElementById("walletStatusLabel");
 const walletAddressDisplay = document.getElementById("walletAddressDisplay");
+const walletChevron = document.getElementById("walletChevron");
+const walletIcon = document.getElementById("walletIcon");
+const walletModal = document.getElementById("walletModal");
+const closeWalletModalBtn = document.getElementById("closeWalletModalBtn");
+const btnDisconnectWallet = document.getElementById("btnDisconnectWallet");
+const walletFullAddress = document.getElementById("walletFullAddress");
 
 // Asset Switch
 const btnReceiptAsset = document.getElementById("btnReceiptAsset");
@@ -560,8 +569,90 @@ for (let i = 1; i <= 6; i++) {
   }
 }
 
+// Wallet Management
+async function startWalletCreation() {
+  if (isCreatingWallet || walletConnected) return;
+  isCreatingWallet = true;
+
+  walletBtn.disabled = true;
+  walletBtn.classList.add("creating");
+  walletBtn.classList.remove("not-connected");
+
+  if (walletIcon) {
+    walletIcon.classList.add("spin-icon");
+    walletIcon.innerHTML = `
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round" fill="none"></circle>
+    `;
+  }
+  walletAddressDisplay.textContent = "Creating wallet...";
+  if (walletChevron) walletChevron.style.display = "none";
+
+  if (walletStatusDot) walletStatusDot.className = "status-dot creating";
+  if (walletStatusLabel) walletStatusLabel.textContent = "CREATING WALLET...";
+
+  showToast("Generating testnet keypair & deriving CKB lock...");
+
+  // Realistic asynchronous delay
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  isCreatingWallet = false;
+  walletConnected = true;
+
+  walletBtn.disabled = false;
+  walletBtn.classList.remove("creating", "not-connected");
+
+  if (walletIcon) {
+    walletIcon.classList.remove("spin-icon");
+    walletIcon.innerHTML = `
+      <rect x="2" y="5" width="20" height="14" rx="3"></rect>
+      <line x1="2" y1="10" x2="22" y2="10"></line>
+    `;
+  }
+  walletAddressDisplay.textContent = "0x7b...91c4";
+  if (walletChevron) walletChevron.style.display = "inline-block";
+
+  if (walletStatusDot) walletStatusDot.className = "status-dot online";
+  if (walletStatusLabel) walletStatusLabel.textContent = "WALLET CONNECTED";
+
+  showToast("✓ Testnet wallet created: 0x7b23...91c4");
+  setTimeout(() => {
+    showToast("Funded with 48,500 testnet CKB");
+  }, 1200);
+}
+
+function disconnectWallet() {
+  walletConnected = false;
+  isCreatingWallet = false;
+
+  walletBtn.disabled = false;
+  walletBtn.classList.add("not-connected");
+  walletBtn.classList.remove("creating");
+
+  if (walletIcon) {
+    walletIcon.classList.remove("spin-icon");
+    walletIcon.innerHTML = `
+      <rect x="2" y="5" width="20" height="14" rx="3"></rect>
+      <line x1="2" y1="10" x2="22" y2="10"></line>
+    `;
+  }
+  walletAddressDisplay.textContent = "Create / Connect Wallet";
+  if (walletChevron) walletChevron.style.display = "none";
+
+  if (walletStatusDot) walletStatusDot.className = "status-dot disconnected";
+  if (walletStatusLabel) walletStatusLabel.textContent = "NOT CONNECTED";
+
+  walletModal.setAttribute("hidden", "");
+  showToast("Wallet disconnected");
+}
+
 // Main stage action button (Simulate with Live RPC Verification)
 stageActionBtn.addEventListener("click", async () => {
+  if (!walletConnected) {
+    showToast("⚠️ Wallet required: Creating testnet wallet first...");
+    await startWalletCreation();
+    return;
+  }
+
   stageActionBtn.disabled = true;
   const originalText = stageActionBtnText.textContent;
   stageActionBtnText.textContent = "Verifying with CKB Testnet...";
@@ -618,21 +709,30 @@ cellLockVal.addEventListener("click", () => {
   copyToClipboard(full, "Full Cell Lock script copied!");
 });
 
-// Wallet toggle / info
+// Wallet button click: create if disconnected, open modal if connected
 walletBtn.addEventListener("click", () => {
-  walletConnected = !walletConnected;
-  if (walletConnected) {
-    walletStatusIndicator.querySelector(".status-dot").className = "status-dot online";
-    walletStatusIndicator.querySelector(".status-label").textContent = "WALLET CONNECTED";
-    walletAddressDisplay.textContent = "0x7b...91c4";
-    showToast("Connected: 0x7b23...91c4 (CKB Testnet Pudge)");
+  if (!walletConnected) {
+    startWalletCreation();
   } else {
-    walletStatusIndicator.querySelector(".status-dot").className = "status-dot";
-    walletStatusIndicator.querySelector(".status-label").textContent = "DISCONNECTED";
-    walletAddressDisplay.textContent = "Connect";
-    showToast("Wallet disconnected");
+    walletModal.removeAttribute("hidden");
   }
 });
+
+// Wallet modal controls
+closeWalletModalBtn.addEventListener("click", () => {
+  walletModal.setAttribute("hidden", "");
+});
+walletModal.addEventListener("click", (e) => {
+  if (e.target === walletModal) walletModal.setAttribute("hidden", "");
+});
+btnDisconnectWallet.addEventListener("click", () => {
+  disconnectWallet();
+});
+if (walletFullAddress) {
+  walletFullAddress.addEventListener("click", () => {
+    copyToClipboard("ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xw3q8a4e", "Full CKB testnet address copied!");
+  });
+}
 
 // Modals
 openHowItWorksBtn.addEventListener("click", () => {
@@ -697,6 +797,7 @@ document.addEventListener("keydown", (e) => {
     deploymentModal.setAttribute("hidden", "");
     txInspectorModal.setAttribute("hidden", "");
     rpcModal.setAttribute("hidden", "");
+    walletModal.setAttribute("hidden", "");
   }
 });
 
